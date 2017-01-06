@@ -10,3 +10,5 @@ build
 /root/
 *.swo
 *.swp
+cscope.*
+tags
