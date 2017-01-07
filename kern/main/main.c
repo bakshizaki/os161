@@ -104,6 +104,7 @@ boot(void)
 
 	kprintf("Zaki's system version %s (%s #%d)\n",
 		GROUP_VERSION, buildconfig, buildversion);
+	kprintf("email:mbakshi@buffalo.edu\n");
 	kprintf("\n");
 
 	/* Early initialization. */
