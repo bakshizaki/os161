@@ -173,6 +173,7 @@ lock_destroy(struct lock *lock)
 	KASSERT(lock != NULL);
 
 	// add stuff here as needed
+	KASSERT(lock->lk_thread==NULL);
 	spinlock_cleanup(&lock->lk_lock);
 	wchan_destroy(lock->lk_wchan);
 	kfree(lock->lk_name);
