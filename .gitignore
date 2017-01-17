@@ -12,3 +12,7 @@ build
 *.swp
 cscope.*
 tags
+tags.bak
+Session.vim
+Session.vim.bak
+errors.log
