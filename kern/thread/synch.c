@@ -39,6 +39,7 @@
 #include <thread.h>
 #include <current.h>
 #include <synch.h>
+#include <spl.h>
 
 ////////////////////////////////////////////////////////////
 //
@@ -277,16 +278,19 @@ cv_wait(struct cv *cv, struct lock *lock)
 	// Write this
 	/*(void)cv;    // suppress warning until code gets written*/
 	/*(void)lock;  // suppress warning until code gets written*/
-	kprintf(".");
+	/*kprintf(".");*/
+	int spl;
 	KASSERT(cv!=NULL);
 	KASSERT(lock!=NULL);
 	KASSERT(lock_do_i_hold(lock));
 	KASSERT(curthread->t_in_interrupt == false);
+	spl=splhigh();
 	lock_release(lock);
 	spinlock_acquire(&cv->cv_lock);
 	wchan_sleep(cv->cv_wchan,&cv->cv_lock);
 	spinlock_release(&cv->cv_lock);
 	lock_acquire(lock);
+	splx(spl);
 }
 
 void
@@ -295,7 +299,7 @@ cv_signal(struct cv *cv, struct lock *lock)
 	// Write this
 	/*(void)cv;    // suppress warning until code gets written*/
 	/*(void)lock;  // suppress warning until code gets written*/
-	kprintf(".");
+	/*kprintf(".");*/
 	KASSERT(cv!=NULL);
 	KASSERT(lock!=NULL);
 	KASSERT(lock_do_i_hold(lock));
@@ -317,3 +321,105 @@ cv_broadcast(struct cv *cv, struct lock *lock)
 	wchan_wakeall(cv->cv_wchan,&cv->cv_lock);
 	spinlock_release(&cv->cv_lock);
 }
+
+struct rwlock *
+rwlock_create(const char *name)
+{
+	struct rwlock *rwlock;
+
+	rwlock=kmalloc(sizeof(*rwlock));
+	if(rwlock == NULL) {
+		return NULL;
+	}
+
+	rwlock->rwlock_name = kstrdup(name);
+	if (rwlock->rwlock_name == NULL) {
+		kfree(rwlock);
+		return NULL;
+	}
+	rwlock->sem_reader_count=sem_create("sem_reader_count",1);
+	KASSERT(rwlock->sem_reader_count!=NULL);
+	rwlock->sem_resource= sem_create("sem_resource",1);
+	KASSERT(rwlock->sem_resource!=NULL);
+	rwlock->reader_count=0;
+	rwlock->writer_count = 0;
+	rwlock->lk_lock_for_cv = lock_create("lock_for_cv");
+	KASSERT(rwlock->lk_lock_for_cv!=NULL);
+	rwlock->cv_rw = cv_create("cv_rw");
+	KASSERT(rwlock->cv_rw!=NULL);
+	return rwlock;
+	
+}
+
+void
+rwlock_destroy(struct rwlock *rwlock)
+{
+	KASSERT(rwlock != NULL);
+	sem_destroy(rwlock->sem_reader_count);
+	sem_destroy(rwlock->sem_resource);
+	lock_destroy(rwlock->lk_lock_for_cv);
+	cv_destroy(rwlock->cv_rw);
+	kfree(rwlock->rwlock_name);
+	kfree(rwlock);
+}
+
+void
+rwlock_acquire_read(struct rwlock *rwlock)
+{
+	//wait even if one writer is waiting to write
+	KASSERT(rwlock!=NULL);
+	lock_acquire(rwlock->lk_lock_for_cv);
+	while(rwlock->writer_count > 0) {
+		cv_wait(rwlock->cv_rw,rwlock->lk_lock_for_cv);
+	}
+	lock_release(rwlock->lk_lock_for_cv);
+
+	//increase the reader_count
+	//if it is the first reader then lock resource
+	//upcoming readers dont need to lock resource
+	P(rwlock->sem_reader_count);
+	rwlock->reader_count++;
+	if(rwlock->reader_count == 1) {
+		P(rwlock->sem_resource);
+	}
+	V(rwlock->sem_reader_count);
+
+}
+
+
+void 
+rwlock_release_read(struct rwlock *rwlock)
+{
+	P(rwlock->sem_reader_count);
+	rwlock->reader_count--;
+	if(rwlock->reader_count == 0) {
+		V(rwlock->sem_resource);
+	}
+	V(rwlock->sem_reader_count);
+	
+}
+
+
+void 
+rwlock_acquire_write(struct rwlock *rwlock)
+{
+	lock_acquire(rwlock->lk_lock_for_cv);
+	rwlock->writer_count++;
+	lock_release(rwlock->lk_lock_for_cv);
+	P(rwlock->sem_resource);
+}
+
+
+void 
+rwlock_release_write(struct rwlock *rwlock)
+{
+	V(rwlock->sem_resource);
+	lock_acquire(rwlock->lk_lock_for_cv);
+	rwlock->writer_count--;
+	if(rwlock->writer_count==0) {
+		cv_broadcast(rwlock->cv_rw,rwlock->lk_lock_for_cv);
+	}
+	lock_release(rwlock->lk_lock_for_cv);
+
+}
+

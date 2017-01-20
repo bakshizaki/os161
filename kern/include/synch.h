@@ -156,6 +156,11 @@ struct rwlock {
         char *rwlock_name;
         // add what you need here
         // (don't forget to mark things volatile as needed)
+		struct semaphore *sem_reader_count, *sem_resource;
+		volatile unsigned reader_count, writer_count;
+		struct lock *lk_lock_for_cv;
+		struct cv *cv_rw;
+		
 };
 
 struct rwlock * rwlock_create(const char *);
