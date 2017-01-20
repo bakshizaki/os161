@@ -44,7 +44,17 @@
  * Called by the driver during initialization.
  */
 
+/* TODO: change the code such that matchmaker releases the exact male and
+ * female which he matchmaked
+ * right now the matchmaker sends the signal to any random male and female
+ * after he receives signal from a male and a female
+ */
+struct semaphore *sem_male, *sem_female, *sem_match_male, *sem_match_female;
 void whalemating_init() {
+	sem_male=sem_create("sem_male",0);
+	sem_female=sem_create("sem_female",0);
+	sem_match_male=sem_create("sem_match_male",0);
+	sem_match_female=sem_create("sem_match_female",0);
 	return;
 }
 
@@ -54,6 +64,10 @@ void whalemating_init() {
 
 void
 whalemating_cleanup() {
+	sem_destroy(sem_male);
+	sem_destroy(sem_female);
+	sem_destroy(sem_match_male);
+	sem_destroy(sem_match_female);
 	return;
 }
 
@@ -65,6 +79,10 @@ male(uint32_t index)
 	 * Implement this function by calling male_start and male_end when
 	 * appropriate.
 	 */
+	male_start(index);
+	V(sem_male);
+	P(sem_match_male);
+	male_end(index);
 	return;
 }
 
@@ -76,6 +94,10 @@ female(uint32_t index)
 	 * Implement this function by calling female_start and female_end when
 	 * appropriate.
 	 */
+	female_start(index);
+	V(sem_female);
+	P(sem_match_female);
+	female_end(index);
 	return;
 }
 
@@ -87,5 +109,11 @@ matchmaker(uint32_t index)
 	 * Implement this function by calling matchmaker_start and matchmaker_end
 	 * when appropriate.
 	 */
+	matchmaker_start(index);
+	P(sem_male);
+	P(sem_female);
+	V(sem_match_male);
+	V(sem_match_female);
+	matchmaker_end(index);
 	return;
 }
