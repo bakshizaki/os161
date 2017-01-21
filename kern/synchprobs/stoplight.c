@@ -243,9 +243,9 @@ gostraight(uint32_t direction, uint32_t index)
 	inQuadrant(target_quadrant,index);
 	uint32_t new_target_quadrant=(target_quadrant + NUM_QUADRANTS - 1) % NUM_QUADRANTS;
 	simply_acquire_lock(new_target_quadrant);
+	inQuadrant(new_target_quadrant,index);
 	simply_release_lock(target_quadrant);
 	target_quadrant=new_target_quadrant;
-	inQuadrant(target_quadrant,index);
 	leaveIntersection(index);
 	simply_release_lock(target_quadrant);
 	
@@ -262,14 +262,14 @@ turnleft(uint32_t direction, uint32_t index)
 	inQuadrant(target_quadrant,index);
 	uint32_t new_target_quadrant=(direction + NUM_QUADRANTS - 1) % NUM_QUADRANTS;
 	simply_acquire_lock(new_target_quadrant);
+	inQuadrant(new_target_quadrant,index);
 	simply_release_lock(target_quadrant);
 	target_quadrant=new_target_quadrant;
-	inQuadrant(target_quadrant,index);
 	new_target_quadrant=(target_quadrant + NUM_QUADRANTS - 1) % NUM_QUADRANTS;
 	simply_acquire_lock(new_target_quadrant);
+	inQuadrant(new_target_quadrant,index);
 	simply_release_lock(target_quadrant);
 	target_quadrant=new_target_quadrant;
-	inQuadrant(target_quadrant,index);
 	leaveIntersection(index);
 	simply_release_lock(target_quadrant);
 
