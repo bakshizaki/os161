@@ -98,6 +98,9 @@ void lock_destroy(struct lock *);
 void lock_acquire(struct lock *);
 void lock_release(struct lock *);
 bool lock_do_i_hold(struct lock *);
+//checks if the lock is acquired by someone
+//custom function written specially for sp2, dont use otherwise
+bool is_lock_acquired(struct lock *);
 
 
 /*

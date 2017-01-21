@@ -481,6 +481,7 @@ turnright_wrapper(void *index, unsigned long direction)
 		cv_wait(startcv, testlock);
 	}
 	lock_release(testlock);
+	kprintf("%s wants to go right\n",curthread->t_name);
 	turnright((uint32_t)direction, (uint32_t)index);
 	V(endsem);
 
@@ -500,6 +501,7 @@ gostraight_wrapper(void *index, unsigned long direction)
 		cv_wait(startcv, testlock);
 	}
 	lock_release(testlock);
+	kprintf("%s wants to go straight\n",curthread->t_name);
 	gostraight((uint32_t)direction, (uint32_t)index);
 	V(endsem);
 
@@ -519,6 +521,7 @@ turnleft_wrapper(void *index, unsigned long direction)
 		cv_wait(startcv, testlock);
 	}
 	lock_release(testlock);
+	kprintf("%s wants to go left\n",curthread->t_name);
 	turnleft((uint32_t)direction, (uint32_t)index);
 	V(endsem);
 

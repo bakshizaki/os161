@@ -93,8 +93,33 @@
  * intersection in which case it becomes a deadlock.
  *
  */
+
+#define NUM_QUADRANTS 4
+//lock for each quadrant
+struct lock *lock_0;
+struct lock *lock_1;
+struct lock *lock_2;
+struct lock *lock_3;
+
+//condition variable and its lock, since the above locks are shared, they should
+//be protected
+struct cv *cv_avoid_deadlock;
+struct lock *lk_avoid_deadlock;
+
+struct lock * get_target_lock(uint32_t target_quadrant);
+void get_other_locks(struct lock *other_locks[], uint32_t target_quadrant);
+void safely_acquire_lock(uint32_t target_quadrant);
+void simply_acquire_lock(uint32_t target_quadrant);
+void simply_release_lock(uint32_t target_quadrant);
+
 void
 stoplight_init() {
+	lock_0=lock_create("lock_0");
+	lock_1=lock_create("lock_1");
+	lock_2=lock_create("lock_2");
+	lock_3=lock_create("lock_3");
+	lk_avoid_deadlock=lock_create("lk_avoid_deadlock");
+	cv_avoid_deadlock=cv_create("cv_avoid_deadlock");
 	return;
 }
 
@@ -103,7 +128,94 @@ stoplight_init() {
  */
 
 void stoplight_cleanup() {
+	lock_destroy(lock_0);
+	lock_destroy(lock_1);
+	lock_destroy(lock_2);
+	lock_destroy(lock_3);
+	lock_destroy(lk_avoid_deadlock);
+	cv_destroy(cv_avoid_deadlock);
 	return;
+}
+
+struct lock *
+get_target_lock(uint32_t target_quadrant)
+{
+	switch(target_quadrant)
+	{
+		case 0:
+			return lock_0;
+			break;
+		case 1:
+			return lock_1;
+			break;
+		case 2:
+			return lock_2;
+			break;
+		case 3:
+			return lock_3;
+			break;
+		default:
+			kprintf("ERROR: Undefined quadrant\n");
+			break;
+	};
+	KASSERT(false);
+	//asdfj
+	return NULL;
+}
+
+void
+get_other_locks(struct lock *other_locks[], uint32_t target_quadrant)
+{
+	int i,j=0;
+	for(i=0;i<NUM_QUADRANTS;i++)
+	{
+		if(i!=(int)target_quadrant) {
+			other_locks[j++]=get_target_lock(i);
+		}	
+	}
+
+}
+
+
+void
+safely_acquire_lock(uint32_t target_quadrant)
+{
+	struct lock *target_lock=get_target_lock(target_quadrant);
+	struct lock *other_locks[NUM_QUADRANTS];
+	get_other_locks(other_locks,target_quadrant);
+	lock_acquire(lk_avoid_deadlock);
+	// wait till target lock is free and one other lock is free
+	// this avoids deadlock of 4 cars
+	while(is_lock_acquired(target_lock) || 
+			(is_lock_acquired(other_locks[0]) && 
+			 is_lock_acquired(other_locks[1]) && is_lock_acquired(other_locks[2]))) {
+		cv_wait(cv_avoid_deadlock,lk_avoid_deadlock);
+
+	}
+	lock_acquire(target_lock);
+	lock_release(lk_avoid_deadlock);
+}
+
+void
+simply_acquire_lock(uint32_t target_quadrant)
+{
+	struct lock *target_lock=get_target_lock(target_quadrant);
+	lock_acquire(lk_avoid_deadlock);
+	while(is_lock_acquired(target_lock)) {
+		cv_wait(cv_avoid_deadlock,lk_avoid_deadlock);
+	}
+	lock_acquire(target_lock);
+	lock_release(lk_avoid_deadlock);
+}
+
+void
+simply_release_lock(uint32_t target_quadrant)
+{
+	struct lock *target_lock=get_target_lock(target_quadrant);
+	lock_acquire(lk_avoid_deadlock);
+	lock_release(target_lock);
+	cv_broadcast(cv_avoid_deadlock,lk_avoid_deadlock);
+	lock_release(lk_avoid_deadlock);
 }
 
 void
@@ -111,9 +223,13 @@ turnright(uint32_t direction, uint32_t index)
 {
 	(void)direction;
 	(void)index;
-	/*
-	 * Implement this function.
-	 */
+
+	uint32_t target_quadrant=direction;
+	safely_acquire_lock(target_quadrant);
+	inQuadrant(target_quadrant,index);
+	leaveIntersection(index);
+	simply_release_lock(target_quadrant);
+
 	return;
 }
 void
@@ -121,18 +237,42 @@ gostraight(uint32_t direction, uint32_t index)
 {
 	(void)direction;
 	(void)index;
-	/*
-	 * Implement this function.
-	 */
+
+	uint32_t target_quadrant=direction;
+	safely_acquire_lock(target_quadrant);
+	inQuadrant(target_quadrant,index);
+	uint32_t new_target_quadrant=(target_quadrant + NUM_QUADRANTS - 1) % NUM_QUADRANTS;
+	simply_acquire_lock(new_target_quadrant);
+	simply_release_lock(target_quadrant);
+	target_quadrant=new_target_quadrant;
+	inQuadrant(target_quadrant,index);
+	leaveIntersection(index);
+	simply_release_lock(target_quadrant);
+	
 	return;
 }
 void
 turnleft(uint32_t direction, uint32_t index)
 {
 	(void)direction;
-	(void)index;
-	/*
-	 * Implement this function.
-	 */
+	(void)index; 
+
+	uint32_t target_quadrant=direction;
+	safely_acquire_lock(target_quadrant);
+	inQuadrant(target_quadrant,index);
+	uint32_t new_target_quadrant=(direction + NUM_QUADRANTS - 1) % NUM_QUADRANTS;
+	simply_acquire_lock(new_target_quadrant);
+	simply_release_lock(target_quadrant);
+	target_quadrant=new_target_quadrant;
+	inQuadrant(target_quadrant,index);
+	new_target_quadrant=(target_quadrant + NUM_QUADRANTS - 1) % NUM_QUADRANTS;
+	simply_acquire_lock(new_target_quadrant);
+	simply_release_lock(target_quadrant);
+	target_quadrant=new_target_quadrant;
+	inQuadrant(target_quadrant,index);
+	leaveIntersection(index);
+	simply_release_lock(target_quadrant);
+
+
 	return;
 }

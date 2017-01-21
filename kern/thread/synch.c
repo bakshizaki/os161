@@ -225,6 +225,16 @@ lock_do_i_hold(struct lock *lock)
 	return(lock->lk_thread == curthread);
 }
 
+bool
+is_lock_acquired(struct lock *lock) {
+	if(lock->lk_thread!=NULL) {
+		return true;
+	}
+	else {
+		return false;
+	}
+}
+
 ////////////////////////////////////////////////////////////
 //
 // CV
