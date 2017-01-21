@@ -73,6 +73,26 @@
  * Called by the driver during initialization.
  */
 
+/* Answers to code reading questions:
+ * 1.Assume that Buffalonians are not Buffalonians and obey the law: whoever 
+ * arrives at the intersection first proceeds first. Using the language of 
+ * synchronization primitives describe the way this intersection is controlled.
+ * In what ways is this method suboptimal?
+ * Ans: Here the first can arriving the intersection is acquiring lock for 3
+ * quadrant (e.g. 1 acquiring lock for 1,0,3). This is suboptimal since
+ * if there are less than 4 cars arriving at the same time each can acquire
+ * lock for their upcoming desired quadrant and complete their journey without
+ * crashing.
+ *
+ * 2. Now, assume that the Buffalonians are Buffalonians and do not follow the
+ * convention described above. In what one instance can this four-­‐‑way-­‐‑stop
+ * intersection produce a deadlock? It is helpful to think of this in terms of
+ * the model we are using instead of trying to visualize an actual intersection.
+ * Ans: It works well if everyone is allowed to acquire their desired lock when
+ * they arrive at the intersection except the case that 4 cars arrive at the
+ * intersection in which case it becomes a deadlock.
+ *
+ */
 void
 stoplight_init() {
 	return;
