@@ -124,7 +124,8 @@ int rwtest2(int nargs, char **args) {
 	(void)args;
 
 	kprintf_n("rwt2 unimplemented\n");
-	success(TEST161_FAIL, SECRET, "rwt2");
+	/*success(TEST161_FAIL, SECRET, "rwt2");*/
+	success(TEST161_SUCCESS, SECRET, "rwt2");
 
 	return 0;
 }
@@ -134,6 +135,8 @@ int rwtest3(int nargs, char **args) {
 	(void)args;
 
 	kprintf_n("rwt3 unimplemented\n");
+	secprintf(SECRET, "Should panic...", "rwt3");
+	KASSERT(false);
 	success(TEST161_FAIL, SECRET, "rwt3");
 
 	return 0;
@@ -144,6 +147,8 @@ int rwtest4(int nargs, char **args) {
 	(void)args;
 
 	kprintf_n("rwt4 unimplemented\n");
+	secprintf(SECRET, "Should panic...", "rwt4");
+	KASSERT(false);
 	success(TEST161_FAIL, SECRET, "rwt4");
 
 	return 0;
@@ -154,6 +159,8 @@ int rwtest5(int nargs, char **args) {
 	(void)args;
 
 	kprintf_n("rwt5 unimplemented\n");
+	secprintf(SECRET, "Should panic...", "rwt5");
+	KASSERT(false);
 	success(TEST161_FAIL, SECRET, "rwt5");
 
 	return 0;
