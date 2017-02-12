@@ -266,6 +266,14 @@ cv_create(const char *name)
 
 	// add stuff here as needed
 
+ spinlock_init(&cv->cv_spinlock);
+ cv->cv_wchan =  wchan_create(cv->cv_name);
+ if(cv->cv_wchan == NULL) {
+   kfree(cv->cv_name);
+   kfree(cv);
+   return NULL;
+ }
+
 	return cv;
 }
 
@@ -275,6 +283,8 @@ cv_destroy(struct cv *cv)
 	KASSERT(cv != NULL);
 
 	// add stuff here as needed
+  spinlock_cleanup(&cv->cv_spinlock);
+  wchan_destroy(cv->cv_wchan);
 
 	kfree(cv->cv_name);
 	kfree(cv);
@@ -284,22 +294,62 @@ void
 cv_wait(struct cv *cv, struct lock *lock)
 {
 	// Write this
-	(void)cv;    // suppress warning until code gets written
-	(void)lock;  // suppress warning until code gets written
+
+  // Release the lock first
+  KASSERT(lock != NULL);
+  KASSERT(cv != NULL);
+
+  //if(!spinlock_do_i_hold(&cv->cv_spinlock)) {
+  //  spinlock_acquire(&cv->cv_spinlock);
+ // }
+  //spinlock_acquire(&cv->cv_spinlock);
+
+  if(lock_do_i_hold(lock)) {
+
+
+    spinlock_acquire(&cv->cv_spinlock);
+    // release the lock for other threads
+    lock_release(lock);
+
+    // Put the thread to sleep
+    wchan_sleep(cv->cv_wchan,&cv->cv_spinlock);
+
+    // acquire the lock
+    lock_acquire(lock);
+  }
+
+  //spinlock_release(&cv->cv_spinlock);
+
 }
 
 void
 cv_signal(struct cv *cv, struct lock *lock)
 {
 	// Write this
-	(void)cv;    // suppress warning until code gets written
-	(void)lock;  // suppress warning until code gets written
+  KASSERT(cv != NULL);
+  KASSERT(lock != NULL);
+
+  spinlock_acquire(&cv->cv_spinlock);
+
+  KASSERT(lock_do_i_hold(lock));
+  wchan_wakeone(cv->cv_wchan,&cv->cv_spinlock);
+
+  spinlock_release(&cv->cv_spinlock);
+
 }
 
 void
 cv_broadcast(struct cv *cv, struct lock *lock)
 {
 	// Write this
-	(void)cv;    // suppress warning until code gets written
-	(void)lock;  // suppress warning until code gets written
+  KASSERT(cv != NULL);
+  KASSERT(lock != NULL);
+
+  spinlock_acquire(&cv->cv_spinlock);
+
+  KASSERT(lock_do_i_hold(lock));
+  wchan_wakeall(cv->cv_wchan, &cv->cv_spinlock);
+
+  spinlock_release(&cv->cv_spinlock);
+
 }

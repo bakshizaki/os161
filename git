@@ -1,0 +1,14 @@
+Inside root directory : sys161 -w kernel
+Inside another window: os161-gdb kernel
+					   target remote unix:.sockets/gdb
+
+
+
+b argument - breakpoint 
+c - continue
+
+Once pgm reaches breakpoint
+n - next
+bt - backtrace
+up - goes up the stack trace
+down - goes down the stack trace
