@@ -128,7 +128,7 @@ common_prog(int nargs, char **args)
 	}
 
 	tc = thread_count;
-
+	proc_console_init(proc);
 	result = thread_fork(args[0] /* thread name */,
 			proc /* new process */,
 			cmd_progthread /* thread function */,

@@ -37,11 +37,22 @@
  */
 
 #include <spinlock.h>
+#include <limits.h>
+#include <synch.h>
+#include <vfs.h>
+#include <kern/fcntl.h>
 
 struct addrspace;
 struct thread;
 struct vnode;
 
+struct file_handle {
+	struct vnode *fh_vnode;
+	off_t fh_offset;
+	int fh_flags;
+	int fh_nreferences;
+	struct lock *fh_accesslock;
+};
 /*
  * Process structure.
  *
@@ -71,6 +82,8 @@ struct proc {
 	struct vnode *p_cwd;		/* current working directory */
 
 	/* add more material here as needed */
+	struct file_handle *p_filetable[__OPEN_MAX];
+	int p_lastest_fd;
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */
@@ -97,5 +110,18 @@ struct addrspace *proc_getas(void);
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
 
+/* Get the next available file descriptor */
+int proc_get_available_fd(struct proc *proc);
 
+/* Create file_handle*/
+struct file_handle * proc_create_file_handle(struct proc *proc, int fd, struct vnode *v, off_t offset, int flags);
+
+/* Get file handle for file descriptor */
+struct file_handle * proc_get_file_handle(struct proc *proc, int fd);
+
+/* destroy file handle */
+void proc_destroy_file_handle(struct proc *proc, int fd);
+
+/* initialize console */
+int proc_console_init(struct proc *proc);
 #endif /* _PROC_H_ */
