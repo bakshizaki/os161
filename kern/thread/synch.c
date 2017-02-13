@@ -299,24 +299,19 @@ cv_wait(struct cv *cv, struct lock *lock)
   KASSERT(lock != NULL);
   KASSERT(cv != NULL);
 
-  //if(!spinlock_do_i_hold(&cv->cv_spinlock)) {
-  //  spinlock_acquire(&cv->cv_spinlock);
- // }
-  //spinlock_acquire(&cv->cv_spinlock);
+  KASSERT(lock_do_i_hold(lock));
 
-  if(lock_do_i_hold(lock)) {
+  spinlock_acquire(&cv->cv_spinlock);
+  // release the lock for other threads
+  lock_release(lock);
 
+  // Put the thread to sleep
+  wchan_sleep(cv->cv_wchan,&cv->cv_spinlock);
 
-    spinlock_acquire(&cv->cv_spinlock);
-    // release the lock for other threads
-    lock_release(lock);
+  spinlock_release(&cv->cv_spinlock);
 
-    // Put the thread to sleep
-    wchan_sleep(cv->cv_wchan,&cv->cv_spinlock);
-
-    // acquire the lock
-    lock_acquire(lock);
-  }
+  // acquire the lock
+  lock_acquire(lock);
 
   //spinlock_release(&cv->cv_spinlock);
 
@@ -351,5 +346,56 @@ cv_broadcast(struct cv *cv, struct lock *lock)
   wchan_wakeall(cv->cv_wchan, &cv->cv_spinlock);
 
   spinlock_release(&cv->cv_spinlock);
+}
+
+//////////////////////////////////////////////////
+/////////////////////////////////////////////////
+// READER-WRITER LOCKS
+
+struct rwlock *
+rwlock_create(const char *name) {
+  struct rwlock *rwlock;
+  rwlock = kmalloc(sizeof(*rwlock));
+  if(rwlock == NULL) {
+    return NULL;
+  }
+
+  rwlock->rwlock_name = kstrdup(name);
+  if(rwlock->rwlock_name == NULL) {
+    kfree(rwlock);
+    return NULL;
+  }
+}
+
+void
+rwlock_destroy(struct rwlock *rwlock) {
+  KASSERT(rwlock != null);
+
+}
+
+void
+rwlock_acquire_read(struct rwlock *rwlock) {
+  KASSERT(rwlock != NULL);
+
+
+}
+
+void
+rwlock_release_read(struct rwlock *rwlock) {
+  KASSERT(rwlock != NULL);
+
+}
+
+void
+rwlock_acquire_write(struct rwlock *rwlock) {
+  KASSERT(rwlock != NULL);
+
+
+}
+
+void
+rwlock_release_write(struct rwlock *rwlock) {
+  KASSERT(rwlock != NULL);
+
 
 }
