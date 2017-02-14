@@ -113,6 +113,7 @@ bool lock_do_i_hold(struct lock *);
  * guarantees are made about scheduling.
  *
  * The name field is for easier debugging. A copy of the name is
+ *
  * (should be) made internally.
  */
 
@@ -158,6 +159,10 @@ struct rwlock {
         char *rwlock_name;
         // add what you need here
         // (don't forget to mark things volatile as needed)
+        struct wchan *rwlock_wchan;
+        struct spinlock rwlock_spinlock;
+        struct cv *rwlock_cv;
+        volatile unsigned readcount;
 };
 
 struct rwlock * rwlock_create(const char *);
