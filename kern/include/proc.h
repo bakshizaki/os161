@@ -114,7 +114,7 @@ struct addrspace *proc_setas(struct addrspace *);
 int proc_get_available_fd(struct proc *proc);
 
 /* Create file_handle*/
-struct file_handle * proc_create_file_handle(struct proc *proc, int fd, struct vnode *v, off_t offset, int flags);
+int proc_create_file_handle(struct proc *proc, int fd, struct vnode *v, off_t offset, int flags);
 
 /* Get file handle for file descriptor */
 struct file_handle * proc_get_file_handle(struct proc *proc, int fd);

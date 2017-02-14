@@ -48,6 +48,7 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
+#include <kern/errno.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -329,11 +330,11 @@ proc_get_available_fd(struct proc *proc)
 			return -1;
 		temp_fd=(temp_fd+1)%__OPEN_MAX;
 	}
-	proc->p_lastest_fd=temp_fd;
+	/*proc->p_lastest_fd=temp_fd;*/
 	return temp_fd;
 }
 
-struct file_handle *
+int
 proc_create_file_handle(struct proc *proc, int fd, struct vnode *v, off_t offset, int flags)
 {
 	char name[32];
@@ -342,8 +343,7 @@ proc_create_file_handle(struct proc *proc, int fd, struct vnode *v, off_t offset
 	proc->p_filetable[fd]=kmalloc(sizeof(struct file_handle));
 	if(proc->p_filetable[fd]==NULL)
 	{
-		panic("create_file_handle: kmalloc failed\n");
-		return NULL;
+		return ENOMEM;
 	}
 	proc->p_filetable[fd]->fh_vnode=v;
 	proc->p_filetable[fd]->fh_offset=offset;
@@ -351,7 +351,9 @@ proc_create_file_handle(struct proc *proc, int fd, struct vnode *v, off_t offset
 	proc->p_filetable[fd]->fh_nreferences=1;
 	snprintf(name,sizeof(name),"%s%dlk",proc->p_name,fd);
 	proc->p_filetable[fd]->fh_accesslock=lock_create(name);
-	return proc->p_filetable[fd];
+	if(proc->p_filetable[fd]->fh_accesslock==NULL)
+		return ENOMEM;
+	return 0;
 }
 
 
@@ -371,7 +373,8 @@ proc_destroy_file_handle(struct proc *proc,int fd)
 	proc->p_filetable[fd]->fh_nreferences--;
 	if(proc->p_filetable[fd]->fh_nreferences!=0)
 		return;
-	kfree(proc->p_filetable[fd]->fh_vnode);
+	if(proc->p_filetable[fd]->fh_vnode->vn_refcount == 1)
+		kfree(proc->p_filetable[fd]->fh_vnode);
 	lock_destroy(proc->p_filetable[fd]->fh_accesslock);
 	kfree(proc->p_filetable[fd]);
 	proc->p_filetable[fd]=NULL;
