@@ -311,6 +311,7 @@ cv_destroy(struct cv *cv)
 void
 cv_wait(struct cv *cv, struct lock *lock)
 {
+	/*
 	// Write this
 
   // Release the lock first
@@ -332,6 +333,19 @@ cv_wait(struct cv *cv, struct lock *lock)
   lock_acquire(lock);
 
   //spinlock_release(&cv->cv_spinlock);
+  */
+	int spl;
+	KASSERT(cv!=NULL);
+	KASSERT(lock!=NULL);
+	KASSERT(lock_do_i_hold(lock));
+	KASSERT(curthread->t_in_interrupt == false);
+	spl=splhigh();
+	lock_release(lock);
+	spinlock_acquire(&cv->cv_spinlock);
+	wchan_sleep(cv->cv_wchan,&cv->cv_spinlock);
+	spinlock_release(&cv->cv_spinlock);
+	lock_acquire(lock);
+	splx(spl);
 
 }
 
