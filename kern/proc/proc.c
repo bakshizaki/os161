@@ -371,12 +371,11 @@ proc_destroy_file_handle(struct proc *proc,int fd)
 	KASSERT(proc!=NULL);
 	KASSERT(fd>=0 && fd<__OPEN_MAX);
 	proc->p_filetable[fd]->fh_nreferences--;
-	if(proc->p_filetable[fd]->fh_nreferences!=0)
-		return;
-	if(proc->p_filetable[fd]->fh_vnode->vn_refcount == 1)
-		kfree(proc->p_filetable[fd]->fh_vnode);
-	lock_destroy(proc->p_filetable[fd]->fh_accesslock);
-	kfree(proc->p_filetable[fd]);
+	if(proc->p_filetable[fd]->fh_nreferences == 0) {
+		vfs_close(proc->p_filetable[fd]->fh_vnode);
+		lock_destroy(proc->p_filetable[fd]->fh_accesslock);
+		kfree(proc->p_filetable[fd]);
+	}
 	proc->p_filetable[fd]=NULL;
 }
 
