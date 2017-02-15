@@ -385,8 +385,8 @@ rwlock_create(const char *name)
 	KASSERT(rwlock->lk_reader_count!=NULL);
 	rwlock->lk_writer_count = lock_create("lk_writer_count");
 	KASSERT(rwlock->lk_writer_count!=NULL);
-	rwlock->sem_resource= sem_create("sem_resource",1);
-	KASSERT(rwlock->sem_resource!=NULL);
+	/*rwlock->sem_resource= sem_create("sem_resource",1);*/
+	/*KASSERT(rwlock->sem_resource!=NULL);*/
 	rwlock->reader_count=0;
 	rwlock->writer_waiting = 0;
 	rwlock->reader_waiting = 0;
@@ -425,9 +425,9 @@ rwlock_acquire_read(struct rwlock *rwlock)
 
 	lock_acquire(rwlock->lk_reader_count);
 	rwlock->reader_count++;
-	if(rwlock->reader_count == 1) {
-		P(rwlock->sem_resource);
-	}
+	/*if(rwlock->reader_count == 1) {*/
+		/*P(rwlock->sem_resource);*/
+	/*}*/
 	rwlock->reader_waiting--;
 	lock_release(rwlock->lk_reader_count);
 }
@@ -439,10 +439,16 @@ rwlock_release_read(struct rwlock *rwlock)
 	lock_acquire(rwlock->lk_reader_count);
 	rwlock->reader_count--;
 	if(rwlock->reader_count==0) {
-		V(rwlock->sem_resource);
-		cv_signal(rwlock->reader_cv,rwlock->lk_reader_count);
+		lock_release(rwlock->lk_reader_count);
+		lock_acquire(rwlock->lk_writer_count);
+		if(rwlock->writer_waiting>0)
+			cv_signal(rwlock->reader_cv,rwlock->lk_writer_count);
+		else
+			cv_signal(rwlock->writer_cv,rwlock->lk_writer_count);
+		lock_release(rwlock->lk_writer_count);
 	}
-	lock_release(rwlock->lk_reader_count);
+	else
+		lock_release(rwlock->lk_reader_count);
 }
 
 
@@ -451,16 +457,12 @@ rwlock_acquire_write(struct rwlock *rwlock)
 {
 	lock_acquire(rwlock->lk_writer_count);
 	rwlock->writer_waiting++;
-	lock_release(rwlock->lk_writer_count);
 
-	lock_acquire(rwlock->lk_reader_count);
-	if(rwlock->reader_waiting>0) {
-		cv_wait(rwlock->reader_cv,rwlock->lk_reader_count);
+	if(rwlock->writer_waiting>1) {
+		cv_wait(rwlock->reader_cv,rwlock->lk_writer_count);
 	}
-	lock_release(rwlock->lk_reader_count);
 
-	P(rwlock->sem_resource);
-	rwlock->writer_waiting--;
+	lock_release(rwlock->lk_writer_count);
 }
 
 
@@ -468,15 +470,14 @@ void
 rwlock_release_write(struct rwlock *rwlock)
 {
 	lock_acquire(rwlock->lk_reader_count);
-	if(rwlock->reader_waiting>0) {
-		lock_release(rwlock->lk_reader_count);
-		lock_acquire(rwlock->lk_writer_count);
-		cv_signal(rwlock->writer_cv,rwlock->lk_writer_count);
-		lock_release(rwlock->lk_writer_count);
-	}
-	else
-		lock_release(rwlock->lk_reader_count);
+		if(rwlock->reader_waiting>0)
+			cv_signal(rwlock->writer_cv,rwlock->lk_reader_count);
+		else
+			cv_signal(rwlock->reader_cv,rwlock->lk_reader_count);
+	lock_release(rwlock->lk_reader_count);
+	lock_acquire(rwlock->lk_writer_count);
+	rwlock->writer_waiting--;
+	lock_release(rwlock->lk_writer_count);
 
-	V(rwlock->sem_resource);
 }
 

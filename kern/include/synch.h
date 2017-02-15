@@ -164,7 +164,6 @@ struct rwlock {
         char *rwlock_name;
         // add what you need here
         // (don't forget to mark things volatile as needed)
-		struct semaphore *sem_resource;
 		struct lock *lk_reader_count, *lk_writer_count;
 		volatile unsigned reader_count, writer_waiting, reader_waiting;
 		struct cv *writer_cv, *reader_cv;
