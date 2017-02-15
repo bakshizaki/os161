@@ -429,9 +429,6 @@ rwlock_acquire_read(struct rwlock *rwlock)
 
 	lock_acquire(rwlock->lk_reader_count);
 	rwlock->reader_count++;
-	/*if(rwlock->reader_count == 1) {*/
-		/*P(rwlock->sem_resource);*/
-	/*}*/
 	rwlock->reader_waiting--;
 	lock_release(rwlock->lk_reader_count);
 }
