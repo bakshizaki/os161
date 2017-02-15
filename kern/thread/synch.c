@@ -464,9 +464,11 @@ rwlock_acquire_write(struct rwlock *rwlock)
 	lock_acquire(rwlock->lk_writer_count);
 	rwlock->writer_waiting++;
 
-	if(rwlock->writer_waiting>1) {
+	lock_acquire(rwlock->lk_reader_count);
+	if(rwlock->writer_waiting>1 || rwlock->reader_count>0) {
 		cv_wait(rwlock->reader_cv,rwlock->lk_writer_count);
 	}
+	lock_release(rwlock->lk_reader_count);
 
 	lock_release(rwlock->lk_writer_count);
 }
