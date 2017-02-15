@@ -158,14 +158,17 @@ void cv_broadcast(struct cv *cv, struct lock *lock);
  * (should be) made internally.
  */
 
+#define WAIT_FOR_WRITER 1
+#define WAIT_FOR_READER 2
 struct rwlock {
         char *rwlock_name;
         // add what you need here
         // (don't forget to mark things volatile as needed)
-		struct semaphore *sem_reader_count, *sem_resource;
-		volatile unsigned reader_count, writer_count;
-		struct lock *lk_lock_for_cv;
-		struct cv *cv_rw;
+		struct semaphore *sem_resource;
+		struct lock *lk_reader_count, *lk_writer_count;
+		volatile unsigned reader_count, writer_count, status;
+		struct lock *lk_status;
+		struct cv *cv_status;
 };
 
 struct rwlock * rwlock_create(const char *);
