@@ -388,12 +388,12 @@ rwlock_create(const char *name)
 	rwlock->sem_resource= sem_create("sem_resource",1);
 	KASSERT(rwlock->sem_resource!=NULL);
 	rwlock->reader_count=0;
-	rwlock->writer_count = 0;
-	rwlock->status = 0;
-	rwlock->lk_status = lock_create("lk_status");
-	KASSERT(rwlock->lk_status!=NULL);
-	rwlock->cv_status = cv_create("cv_status");
-	KASSERT(rwlock->cv_status!=NULL);
+	rwlock->writer_waiting = 0;
+	rwlock->reader_waiting = 0;
+	rwlock->writer_cv = cv_create("writer_cv");
+	KASSERT(rwlock->writer_cv!=NULL);
+	rwlock->reader_cv = cv_create("reader_cv");
+	KASSERT(rwlock->reader_cv!=NULL);
 	return rwlock;
 	
 }
@@ -404,8 +404,8 @@ rwlock_destroy(struct rwlock *rwlock)
 	KASSERT(rwlock != NULL);
 	lock_destroy(rwlock->lk_reader_count);
 	lock_destroy(rwlock->lk_writer_count);
-	lock_destroy(rwlock->lk_status);
-	cv_destroy(rwlock->cv_status);
+	cv_destroy(rwlock->writer_cv);
+	cv_destroy(rwlock->reader_cv);
 	kfree(rwlock->rwlock_name);
 	kfree(rwlock);
 }
@@ -414,19 +414,21 @@ void
 rwlock_acquire_read(struct rwlock *rwlock)
 {
 	lock_acquire(rwlock->lk_reader_count);
-	rwlock->reader_count++;
+	rwlock->reader_waiting++;
 	lock_release(rwlock->lk_reader_count);
 
-	lock_acquire(rwlock->lk_status);
-	while(rwlock->status == WAIT_FOR_WRITER) {
-		cv_wait(rwlock->cv_status,rwlock->lk_status);
+	lock_acquire(rwlock->lk_writer_count);
+	if(rwlock->writer_waiting>0) {
+		cv_wait(rwlock->writer_cv,rwlock->lk_writer_count);
 	}
-	lock_release(rwlock->lk_status);
+	lock_release(rwlock->lk_writer_count);
 
 	lock_acquire(rwlock->lk_reader_count);
+	rwlock->reader_count++;
 	if(rwlock->reader_count == 1) {
 		P(rwlock->sem_resource);
 	}
+	rwlock->reader_waiting--;
 	lock_release(rwlock->lk_reader_count);
 }
 
@@ -434,24 +436,13 @@ rwlock_acquire_read(struct rwlock *rwlock)
 void 
 rwlock_release_read(struct rwlock *rwlock)
 {
-	lock_acquire(rwlock->lk_writer_count);
-	if(rwlock->writer_count > 0) {
-		lock_release(rwlock->lk_writer_count);
-		rwlock->status = WAIT_FOR_WRITER;
-		lock_acquire(rwlock->lk_status);
-		cv_broadcast(rwlock->cv_status,rwlock->lk_status);
-		lock_release(rwlock->lk_status);
-	}
-	else
-		lock_release(rwlock->lk_writer_count);
-
 	lock_acquire(rwlock->lk_reader_count);
 	rwlock->reader_count--;
-	if(rwlock->reader_count == 0) {
+	if(rwlock->reader_count==0) {
 		V(rwlock->sem_resource);
+		cv_signal(rwlock->reader_cv,rwlock->lk_reader_count);
 	}
 	lock_release(rwlock->lk_reader_count);
-	
 }
 
 
@@ -459,16 +450,17 @@ void
 rwlock_acquire_write(struct rwlock *rwlock)
 {
 	lock_acquire(rwlock->lk_writer_count);
-	rwlock->writer_count++;
+	rwlock->writer_waiting++;
 	lock_release(rwlock->lk_writer_count);
 
-	lock_acquire(rwlock->lk_status);
-	while(rwlock->status == WAIT_FOR_READER) {
-		cv_wait(rwlock->cv_status,rwlock->lk_status);
+	lock_acquire(rwlock->lk_reader_count);
+	if(rwlock->reader_waiting>0) {
+		cv_wait(rwlock->reader_cv,rwlock->lk_reader_count);
 	}
-	lock_release(rwlock->lk_status);
+	lock_release(rwlock->lk_reader_count);
 
 	P(rwlock->sem_resource);
+	rwlock->writer_waiting--;
 }
 
 
@@ -476,19 +468,15 @@ void
 rwlock_release_write(struct rwlock *rwlock)
 {
 	lock_acquire(rwlock->lk_reader_count);
-	if(rwlock->reader_count>0) {
+	if(rwlock->reader_waiting>0) {
 		lock_release(rwlock->lk_reader_count);
-		rwlock->status = WAIT_FOR_READER;
-		lock_acquire(rwlock->lk_status);
-		cv_broadcast(rwlock->cv_status,rwlock->lk_status);
-		lock_release(rwlock->lk_status);
+		lock_acquire(rwlock->lk_writer_count);
+		cv_signal(rwlock->writer_cv,rwlock->lk_writer_count);
+		lock_release(rwlock->lk_writer_count);
 	}
 	else
 		lock_release(rwlock->lk_reader_count);
 
-	lock_acquire(rwlock->lk_writer_count);
-	rwlock->writer_count--;
 	V(rwlock->sem_resource);
-	lock_release(rwlock->lk_writer_count);
 }
 
