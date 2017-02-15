@@ -402,6 +402,9 @@ void
 rwlock_destroy(struct rwlock *rwlock)
 {
 	KASSERT(rwlock != NULL);
+	KASSERT(rwlock->reader_count==0);
+	KASSERT(rwlock->reader_waiting==0);
+	KASSERT(rwlock->writer_waiting==0);
 	lock_destroy(rwlock->lk_reader_count);
 	lock_destroy(rwlock->lk_writer_count);
 	cv_destroy(rwlock->writer_cv);
@@ -413,6 +416,7 @@ rwlock_destroy(struct rwlock *rwlock)
 void
 rwlock_acquire_read(struct rwlock *rwlock)
 {
+	KASSERT(rwlock!=NULL);
 	lock_acquire(rwlock->lk_reader_count);
 	rwlock->reader_waiting++;
 	lock_release(rwlock->lk_reader_count);
@@ -436,6 +440,7 @@ rwlock_acquire_read(struct rwlock *rwlock)
 void 
 rwlock_release_read(struct rwlock *rwlock)
 {
+	KASSERT(rwlock!=NULL);
 	lock_acquire(rwlock->lk_reader_count);
 	rwlock->reader_count--;
 	if(rwlock->reader_count==0) {
@@ -455,6 +460,7 @@ rwlock_release_read(struct rwlock *rwlock)
 void 
 rwlock_acquire_write(struct rwlock *rwlock)
 {
+	KASSERT(rwlock!=NULL);
 	lock_acquire(rwlock->lk_writer_count);
 	rwlock->writer_waiting++;
 
@@ -469,6 +475,7 @@ rwlock_acquire_write(struct rwlock *rwlock)
 void 
 rwlock_release_write(struct rwlock *rwlock)
 {
+	KASSERT(rwlock!=NULL);
 	lock_acquire(rwlock->lk_reader_count);
 		if(rwlock->reader_waiting>0)
 			cv_signal(rwlock->writer_cv,rwlock->lk_reader_count);
