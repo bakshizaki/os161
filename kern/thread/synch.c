@@ -435,13 +435,15 @@ void
 rwlock_release_read(struct rwlock *rwlock)
 {
 	lock_acquire(rwlock->lk_writer_count);
-	lock_acquire(rwlock->lk_status);
 	if(rwlock->writer_count > 0) {
+		lock_release(rwlock->lk_writer_count);
 		rwlock->status = WAIT_FOR_WRITER;
+		lock_acquire(rwlock->lk_status);
 		cv_broadcast(rwlock->cv_status,rwlock->lk_status);
+		lock_release(rwlock->lk_status);
 	}
-	lock_release(rwlock->lk_status);
-	lock_release(rwlock->lk_writer_count);
+	else
+		lock_release(rwlock->lk_writer_count);
 
 	lock_acquire(rwlock->lk_reader_count);
 	rwlock->reader_count--;
@@ -474,13 +476,15 @@ void
 rwlock_release_write(struct rwlock *rwlock)
 {
 	lock_acquire(rwlock->lk_reader_count);
-	lock_acquire(rwlock->lk_status);
 	if(rwlock->reader_count>0) {
+		lock_release(rwlock->lk_reader_count);
 		rwlock->status = WAIT_FOR_READER;
+		lock_acquire(rwlock->lk_status);
 		cv_broadcast(rwlock->cv_status,rwlock->lk_status);
+		lock_release(rwlock->lk_status);
 	}
-	lock_release(rwlock->lk_status);
-	lock_release(rwlock->lk_reader_count);
+	else
+		lock_release(rwlock->lk_reader_count);
 
 	lock_acquire(rwlock->lk_writer_count);
 	rwlock->writer_count--;
