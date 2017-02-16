@@ -19,11 +19,11 @@ int sys_write(int fd, userptr_t buf, size_t bytes_to_write, int32_t *retval)
 	struct uio u;
 	struct proc *current_proc;
 	current_proc = curthread->t_proc;
-	lock_acquire(current_proc->p_filetable[fd]->fh_accesslock);
 	if(fd<0 || fd>OPEN_MAX)
 		return EBADF;
 	if(current_proc->p_filetable[fd]==NULL)
 		return EBADF;
+	lock_acquire(current_proc->p_filetable[fd]->fh_accesslock);
 	if(((current_proc->p_filetable[fd]->fh_flags)&(O_RDONLY|O_WRONLY|O_RDWR))== O_RDONLY)
 		return EBADF;
 	initial_offset = current_proc->p_filetable[fd]->fh_offset;
