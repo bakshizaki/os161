@@ -35,7 +35,12 @@
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
-
+#include <write_syscall.h>
+#include <open_syscall.h>
+#include <read_syscall.h>
+#include <close_syscall.h>
+#include <lseek_syscall.h>
+#include <copyinout.h>
 
 /*
  * System call dispatcher.
@@ -80,6 +85,8 @@ syscall(struct trapframe *tf)
 {
 	int callno;
 	int32_t retval;
+	int32_t retval2;
+	int32_t lseek_whence;
 	int err;
 
 	KASSERT(curthread != NULL);
@@ -110,6 +117,27 @@ syscall(struct trapframe *tf)
 		break;
 
 	    /* Add stuff here */
+		case SYS_write:
+		/*kprintf("%s",(char *)tf->tf_a1);*/
+		err = sys_write((int)tf->tf_a0,(userptr_t)tf->tf_a1,(size_t)tf->tf_a2,&retval);
+		break;
+
+		case SYS_open:
+		err = sys_open((userptr_t)tf->tf_a0, (int)tf->tf_a1, (mode_t)tf->tf_a2, &retval);
+		break;
+
+		case SYS_read:
+		err = sys_read((int)tf->tf_a0,(userptr_t)tf->tf_a1,(size_t)tf->tf_a2,&retval);
+		break;
+
+		case SYS_close:
+		err = sys_close((int)tf->tf_a0, &retval);
+		break;
+
+		case SYS_lseek:
+		copyin((const_userptr_t) tf->tf_sp+16,&lseek_whence, sizeof(lseek_whence));
+		err = sys_lseek((int)tf->tf_a0,(off_t)((off_t)tf->tf_a2)|tf->tf_a3,lseek_whence,&retval,&retval2);
+		break;
 
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
@@ -131,6 +159,8 @@ syscall(struct trapframe *tf)
 		/* Success. */
 		tf->tf_v0 = retval;
 		tf->tf_a3 = 0;      /* signal no error */
+		if(callno == SYS_lseek)
+			tf->tf_v1 = retval2;
 	}
 
 	/*

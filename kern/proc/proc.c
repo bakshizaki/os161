@@ -48,6 +48,7 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
+#include <kern/errno.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -317,4 +318,89 @@ proc_setas(struct addrspace *newas)
 	proc->p_addrspace = newas;
 	spinlock_release(&proc->p_lock);
 	return oldas;
+}
+
+int
+proc_get_available_fd(struct proc *proc)
+{
+	int temp_fd = proc->p_lastest_fd;
+	temp_fd++;
+	while(proc->p_filetable[temp_fd]!=NULL) {
+		if(temp_fd==proc->p_lastest_fd)
+			return -1;
+		temp_fd=(temp_fd+1)%__OPEN_MAX;
+	}
+	/*proc->p_lastest_fd=temp_fd;*/
+	return temp_fd;
+}
+
+int
+proc_create_file_handle(struct proc *proc, int fd, struct vnode *v, off_t offset, int flags)
+{
+	char name[32];
+	KASSERT(proc!=NULL);
+	KASSERT(fd>=0 && fd<__OPEN_MAX);
+	proc->p_filetable[fd]=kmalloc(sizeof(struct file_handle));
+	if(proc->p_filetable[fd]==NULL)
+	{
+		return ENOMEM;
+	}
+	proc->p_filetable[fd]->fh_vnode=v;
+	proc->p_filetable[fd]->fh_offset=offset;
+	proc->p_filetable[fd]->fh_flags=flags;
+	proc->p_filetable[fd]->fh_nreferences=1;
+	snprintf(name,sizeof(name),"%s%dlk",proc->p_name,fd);
+	proc->p_filetable[fd]->fh_accesslock=lock_create(name);
+	if(proc->p_filetable[fd]->fh_accesslock==NULL)
+		return ENOMEM;
+	return 0;
+}
+
+
+struct file_handle *
+proc_get_file_handle(struct proc *proc,int fd)
+{
+	KASSERT(proc!=NULL);
+	KASSERT(fd>=0 && fd<__OPEN_MAX);
+	return proc->p_filetable[fd];
+}
+
+void
+proc_destroy_file_handle(struct proc *proc,int fd)
+{
+	KASSERT(proc!=NULL);
+	KASSERT(fd>=0 && fd<__OPEN_MAX);
+	proc->p_filetable[fd]->fh_nreferences--;
+	if(proc->p_filetable[fd]->fh_nreferences == 0) {
+		vfs_close(proc->p_filetable[fd]->fh_vnode);
+		lock_destroy(proc->p_filetable[fd]->fh_accesslock);
+		kfree(proc->p_filetable[fd]);
+	}
+	proc->p_filetable[fd]=NULL;
+}
+
+int
+proc_console_init(struct proc *proc)
+{
+	struct vnode *v;
+	int result;
+	char dev_name[5];
+	snprintf(dev_name,sizeof(dev_name),"con:");
+	result = vfs_open(dev_name,O_RDONLY,0,&v);
+	if(result)
+		return result;
+	proc_create_file_handle(proc,0,v,0,O_RDONLY);
+
+	snprintf(dev_name,sizeof(dev_name),"con:");
+	result = vfs_open(dev_name,O_WRONLY,0,&v);
+	if(result)
+		return result;
+	proc_create_file_handle(proc,1,v,0,O_WRONLY);
+
+	snprintf(dev_name,sizeof(dev_name),"con:");
+	result = vfs_open(dev_name,O_WRONLY,0,&v);
+	if(result)
+		return result;
+	proc_create_file_handle(proc,2,v,0,O_WRONLY);
+	return 0;
 }
