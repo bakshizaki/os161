@@ -40,6 +40,7 @@
 #include <read_syscall.h>
 #include <close_syscall.h>
 #include <lseek_syscall.h>
+#include <dup2_syscall.h>
 #include <copyinout.h>
 
 /*
@@ -137,6 +138,10 @@ syscall(struct trapframe *tf)
 		case SYS_lseek:
 		copyin((const_userptr_t) tf->tf_sp+16,&lseek_whence, sizeof(lseek_whence));
 		err = sys_lseek((int)tf->tf_a0,(off_t)((off_t)tf->tf_a2)|tf->tf_a3,lseek_whence,&retval,&retval2);
+		break;
+
+		case SYS_dup2:
+		err = sys_dup2((int)tf->tf_a0,(int)tf->tf_a1,&retval);
 		break;
 
 	    default:
