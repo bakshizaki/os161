@@ -168,6 +168,10 @@ proc_destroy(struct proc *proc)
 
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
+	//clear it from proc_table
+	lock_acquire(proc_table_lock);
+	proc_table[proc->p_pid] = NULL;
+	lock_release(proc_table_lock);
 
 	kfree(proc->p_name);
 	kfree(proc);
@@ -403,4 +407,26 @@ proc_console_init(struct proc *proc)
 		return result;
 	proc_create_file_handle(proc,2,v,0,O_WRONLY);
 	return 0;
+}
+
+
+void
+proc_user_init(struct proc *proc)
+
+int
+proc_get_available_pid()
+{
+	lock_acquire(proc_table_lock);
+	int temp_pid = proc_latest_pid;
+	temp_pid++;
+	while(proc_table[temp_pid]!=NULL) {
+		if(temp_pid == proc_latest_pid)
+		{
+			lock_release(proc_table_lock);
+			return -1;
+		}
+		temp_pid = (temp_pid+1)%__PID_MAX;
+	}
+	lock_release(proc_table_lock);
+	return temp_pid;
 }

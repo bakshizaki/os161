@@ -53,6 +53,14 @@ struct file_handle {
 	int fh_nreferences;
 	struct lock *fh_accesslock;
 };
+
+
+// This is process table
+struct proc* proc_table[__PID_MAX];
+int proc_latest_pid=1;
+struct lock *proc_table_lock;
+proc_table[0] = kmalloc(sizeof(struct proc));
+proc_table[1] = kmalloc(sizeof(struct proc));
 /*
  * Process structure.
  *
@@ -84,6 +92,14 @@ struct proc {
 	/* add more material here as needed */
 	struct file_handle *p_filetable[__OPEN_MAX];
 	int p_lastest_fd;
+	struct thread *p_thread;
+	int p_pid;
+	int p_ppid;
+	bool p_exit_status;
+	int p_exit_code;
+
+	struct lock *p_cv_lock;
+	struct cv *p_cv;
 };
 
 /* This is the process structure for the kernel and for kernel-only threads. */
@@ -124,4 +140,7 @@ void proc_destroy_file_handle(struct proc *proc, int fd);
 
 /* initialize console */
 int proc_console_init(struct proc *proc);
+
+/* get available free pid */
+int proc_get_available_pid();
 #endif /* _PROC_H_ */
