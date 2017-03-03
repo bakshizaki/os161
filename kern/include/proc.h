@@ -57,7 +57,7 @@ struct file_handle {
 
 // This is process table
 struct proc* proc_table[__PID_MAX];
-int proc_latest_pid=1;
+pid_t proc_latest_pid=1;
 struct lock *proc_table_lock;
 proc_table[0] = kmalloc(sizeof(struct proc));
 proc_table[1] = kmalloc(sizeof(struct proc));
@@ -93,8 +93,8 @@ struct proc {
 	struct file_handle *p_filetable[__OPEN_MAX];
 	int p_lastest_fd;
 	struct thread *p_thread;
-	int p_pid;
-	int p_ppid;
+	pid_t p_pid;
+	pid_t p_ppid;
 	bool p_exit_status;
 	int p_exit_code;
 

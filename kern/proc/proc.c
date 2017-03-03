@@ -417,7 +417,7 @@ int
 proc_get_available_pid()
 {
 	lock_acquire(proc_table_lock);
-	int temp_pid = proc_latest_pid;
+	pid_t temp_pid = proc_latest_pid;
 	temp_pid++;
 	while(proc_table[temp_pid]!=NULL) {
 		if(temp_pid == proc_latest_pid)
