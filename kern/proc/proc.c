@@ -411,9 +411,15 @@ proc_console_init(struct proc *proc)
 
 
 void
-proc_user_init(struct proc *proc)
+proc_user_init()
+{
+	proc_table[0] = kmalloc(sizeof(struct proc));
+	proc_table[1] = kmalloc(sizeof(struct proc));
+	proc_latest_pid=1;
+	proc_table_lock = lock_create("table_lock");
+}
 
-int
+pid_t
 proc_get_available_pid()
 {
 	lock_acquire(proc_table_lock);

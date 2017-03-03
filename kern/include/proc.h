@@ -57,10 +57,8 @@ struct file_handle {
 
 // This is process table
 struct proc* proc_table[__PID_MAX];
-pid_t proc_latest_pid=1;
+pid_t proc_latest_pid;
 struct lock *proc_table_lock;
-proc_table[0] = kmalloc(sizeof(struct proc));
-proc_table[1] = kmalloc(sizeof(struct proc));
 /*
  * Process structure.
  *
@@ -142,5 +140,8 @@ void proc_destroy_file_handle(struct proc *proc, int fd);
 int proc_console_init(struct proc *proc);
 
 /* get available free pid */
-int proc_get_available_pid();
+pid_t proc_get_available_pid(void);
+
+
+void proc_user_init(void);
 #endif /* _PROC_H_ */

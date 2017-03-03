@@ -44,6 +44,7 @@
 #include <chdir_syscall.h>
 #include <__getcwd_syscall.h>
 #include <copyinout.h>
+#include <getpid_syscall.h>
 
 /*
  * System call dispatcher.
@@ -152,6 +153,10 @@ syscall(struct trapframe *tf)
 
 		case SYS___getcwd:
 		err = sys___getcwd((userptr_t)tf->tf_a0,(size_t)tf->tf_a1,&retval);
+		break;
+
+		case SYS_getpid:
+		err = sys_getpid(&retval);
 		break;
 
 	    default:
