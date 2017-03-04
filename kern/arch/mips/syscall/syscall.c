@@ -32,6 +32,7 @@
 #include <kern/syscall.h>
 #include <lib.h>
 #include <mips/trapframe.h>
+#include <mips/specialreg.h>
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
@@ -45,6 +46,9 @@
 #include <__getcwd_syscall.h>
 #include <copyinout.h>
 #include <getpid_syscall.h>
+#include <addrspace.h>
+#include <proc.h>
+#include <fork_syscall.h>
 
 /*
  * System call dispatcher.
@@ -159,6 +163,10 @@ syscall(struct trapframe *tf)
 		err = sys_getpid(&retval);
 		break;
 
+		case SYS_fork:
+		err = sys_fork(tf, &retval);
+		break;
+
 	    default:
 		kprintf("Unknown syscall %d\n", callno);
 		err = ENOSYS;
@@ -204,8 +212,36 @@ syscall(struct trapframe *tf)
  *
  * Thus, you can trash it and do things another way if you prefer.
  */
-void
+
+void 
 enter_forked_process(struct trapframe *tf)
 {
-	(void)tf;
+	/*int result;*/
+	/*vaddr_t stackptr;*/
+
+	as_activate();
+	/*result = as_define_stack(curproc->p_addrspace,&stackptr);*/
+	/*if(result)*/
+		/*panic("enter_forked_process error in defining stack");*/
+	curthread->t_proc->p_thread = curthread;
+
+	tf->tf_status = CST_IRQMASK | CST_IEp | CST_KUp;
+	tf->tf_v0 = 0;
+	tf->tf_a3 = 0;
+	/*tf->tf_sp = stackptr;*/
+	
+	tf->tf_epc += 4;
+	mips_usermode(tf);
 }
+
+void 
+fork_proc_wrapper(void *tf, unsigned long junk)
+{
+	struct trapframe usrspace_tf;
+	struct trapframe *kernelspace_tf = tf;
+	usrspace_tf = *kernelspace_tf;
+	kfree(kernelspace_tf);
+	(void)junk;
+	enter_forked_process(&usrspace_tf);
+}
+		

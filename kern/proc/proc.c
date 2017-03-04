@@ -436,3 +436,13 @@ proc_get_available_pid()
 	lock_release(proc_table_lock);
 	return temp_pid;
 }
+
+int proc_copy_file_handle(struct file_handle *old, struct file_handle *new){
+	if(old == NULL)
+		return 0;
+	old->fh_nreferences += 1;
+
+	new = old;
+	return 0;
+}
+

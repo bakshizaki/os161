@@ -27,37 +27,49 @@
  * SUCH DAMAGE.
  */
 
-#ifndef _SYSCALL_H_
-#define _SYSCALL_H_
-
-
-#include <cdefs.h> /* for __DEAD */
-struct trapframe; /* from <machine/trapframe.h> */
-
 /*
- * The system call dispatcher.
+ * rmtest.c
+ *
+ * 	Tests file system synchronization by deleting an open file and
+ * 	then attempting to read it.
+ *
+ * This should run correctly when the file system assignment is complete.
  */
 
-void syscall(struct trapframe *tf);
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <err.h>
+#include <errno.h>
 
-/*
- * Support functions.
- */
+#include <test161/test161.h>
 
-/* Helper for fork(). You write this. */
-__DEAD void enter_forked_process(struct trapframe *tf);
-void fork_proc_wrapper(void *tf, unsigned long junk);
-
-/* Enter user mode. Does not return. */
-__DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
-		       vaddr_t stackptr, vaddr_t entrypoint);
+// 23 Mar 2012 : GWA : BUFFER_COUNT must be even.
 
 
-/*
- * Prototypes for IN-KERNEL entry points for system call implementations.
- */
+int
+main(int argc, char **argv)
+{
 
-int sys_reboot(int code);
-int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
+	// 23 Mar 2012 : GWA : Assume argument passing is *not* supported.
 
-#endif /* _SYSCALL_H_ */
+	(void) argc;
+	(void) argv;
+	printf("Hello World\n");
+	int pid;
+	pid = fork();
+	if(pid == -1)
+	{
+		printf("fork failed");
+		exit(1);
+	} else if(pid == 0) {
+		printf("Hello from child\n");
+		while(1);
+	} else {
+		printf("Hello from parent\n");
+		printf("Child pid:%d\n", pid);
+		while(1);
+	}
+	return 0;
+}
