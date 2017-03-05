@@ -406,6 +406,7 @@ proc_console_init(struct proc *proc)
 	if(result)
 		return result;
 	proc_create_file_handle(proc,2,v,0,O_WRONLY);
+	proc->p_lastest_fd = 2;
 	return 0;
 }
 
@@ -441,7 +442,7 @@ int proc_copy_file_handle(struct file_handle *old, struct file_handle *new){
 	if(old == NULL)
 		return 0;
 	old->fh_nreferences += 1;
-
+	(void)new;
 	new = old;
 	return 0;
 }

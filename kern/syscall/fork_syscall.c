@@ -30,6 +30,8 @@ int sys_fork(struct trapframe *tf, int32_t *retval)
 	{
 		proc_copy_file_handle(curproc->p_filetable[i],child_proc->p_filetable[i]);
 	}
+	child_proc->p_lastest_fd = curproc->p_lastest_fd;
+	child_proc->p_exit_status = false;
 	child_trapframe = kmalloc(sizeof(struct trapframe));
 	*child_trapframe = *tf;
 	result = as_copy(curproc->p_addrspace, &child_proc->p_addrspace);
