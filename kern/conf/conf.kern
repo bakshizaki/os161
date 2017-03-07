@@ -399,6 +399,7 @@ file      syscall/getpid_syscall.c
 file      syscall/fork_syscall.c
 file      syscall/waitpid_syscall.c
 file      syscall/_exit_syscall.c
+file      syscall/execv_syscall.c
 
 #
 # Startup and initialization

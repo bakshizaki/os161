@@ -399,10 +399,6 @@ proc_console_init(struct proc *proc)
 	struct vnode *v;
 	int result;
 	char dev_name[5];
-	for(int i=0;i<__OPEN_MAX;i++)
-	{
-		proc->p_filetable[i] = NULL;
-	}
 	snprintf(dev_name,sizeof(dev_name),"con:");
 	result = vfs_open(dev_name,O_RDONLY,0,&v);
 	if(result)
@@ -422,6 +418,21 @@ proc_console_init(struct proc *proc)
 	proc_create_file_handle(proc,2,v,0,O_WRONLY);
 	proc->p_lastest_fd = 2;
 
+	return 0;
+}
+
+int proc_user_init(struct proc *proc)
+{
+	int result;
+	for(int i=0;i<__OPEN_MAX;i++)
+	{
+		proc->p_filetable[i] = NULL;
+	}
+
+	result = proc_console_init(proc);
+	if(result)
+		return result;
+
 	proc->p_cv_lock = lock_create("p_cv_lock");
 	proc->p_cv = cv_create("p_cv");
 	proc->p_exit_status = false;
@@ -434,7 +445,7 @@ proc_console_init(struct proc *proc)
 
 
 void
-proc_user_init()
+proc_table_init()
 {
 	/*proc_table[0] = kmalloc(sizeof(struct proc));*/
 	/*proc_table[1] = kmalloc(sizeof(struct proc));*/

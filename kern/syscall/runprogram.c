@@ -96,6 +96,10 @@ runprogram(char *progname)
 		/* p_addrspace will go away when curproc is destroyed */
 		return result;
 	}
+	/*proc_console_init(curproc);*/
+	result = proc_user_init(curproc);
+	if(result)
+		panic("failed proc_user_init");
 
 	/* Warp to user mode. */
 	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,

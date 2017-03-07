@@ -56,7 +56,10 @@ main(int argc, char **argv)
 
 	(void) argc;
 	(void) argv;
-	printf("Hello World2\n");
+	const char *test_arg[10] = {"test1", "test2", "test3" };
+	test_arg[3] = NULL;
+	printf("Hello World3\n");
+	execv("test_prog", (char **)test_arg);
 	int pid;
 	int pid2;
 	pid = fork();

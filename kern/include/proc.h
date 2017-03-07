@@ -139,11 +139,14 @@ void proc_destroy_file_handle(struct proc *proc, int fd);
 /* initialize console */
 int proc_console_init(struct proc *proc);
 
+/* initialize fields for first userprogram */
+int proc_user_init(struct proc *proc);
+	
 /* get available free pid */
 pid_t proc_get_available_pid(void);
 
 
-void proc_user_init(void);
+void proc_table_init(void);
 
 int proc_copy_file_handle(struct file_handle *old, struct file_handle *new);
 #endif /* _PROC_H_ */
