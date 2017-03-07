@@ -56,8 +56,9 @@ main(int argc, char **argv)
 
 	(void) argc;
 	(void) argv;
-	printf("Hello World\n");
+	printf("Hello World2\n");
 	int pid;
+	int pid2;
 	pid = fork();
 	if(pid == -1)
 	{
@@ -65,11 +66,15 @@ main(int argc, char **argv)
 		exit(1);
 	} else if(pid == 0) {
 		printf("Hello from child\n");
-		while(1);
+		/*while(1);*/
+		_exit(0);
 	} else {
+		int status;
+		pid2 = waitpid(pid, &status, 0);
 		printf("Hello from parent\n");
 		printf("Child pid:%d\n", pid);
-		while(1);
+		printf("Wait pid:%d\n",pid2);
+		/*while(1);*/
 	}
 	return 0;
 }

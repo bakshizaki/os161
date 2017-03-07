@@ -190,6 +190,8 @@ test(int nowait)
 	}
 
 	pid0 = dofork();
+	if(pid0 != 0)
+		printf("Child: %d\n",pid0);
 	nprintf(".");
 	write(fd, "A", 1);
 	depth++;
@@ -199,6 +201,8 @@ test(int nowait)
 	check();
 
 	pid1 = dofork();
+	if(pid1 != 0)
+		printf("Child: %d\n",pid1);
 	nprintf(".");
 	write(fd, "B", 1);
 	depth++;
@@ -208,6 +212,8 @@ test(int nowait)
 	check();
 
 	pid2 = dofork();
+	if(pid2 != 0)
+		printf("Child: %d\n",pid2);
 	nprintf(".");
 	write(fd, "C", 1);
 	depth++;
@@ -217,6 +223,8 @@ test(int nowait)
 	check();
 
 	pid3 = dofork();
+	if(pid3 != 0)
+		printf("Child: %d\n",pid3);
 	nprintf(".");
 	write(fd, "D", 1);
 	depth++;

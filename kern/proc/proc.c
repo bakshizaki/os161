@@ -49,6 +49,7 @@
 #include <addrspace.h>
 #include <vnode.h>
 #include <kern/errno.h>
+#include <thread.h>
 
 /*
  * The process for the kernel; this holds all the kernel-only threads.
@@ -168,6 +169,15 @@ proc_destroy(struct proc *proc)
 
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
+
+	for(int i=0; i<__OPEN_MAX; i++)
+	{
+		if(proc->p_filetable[i] != NULL)
+			proc_destroy_file_handle(proc,i);
+	}
+
+	lock_destroy(proc->p_cv_lock);
+	cv_destroy(proc->p_cv);
 	//clear it from proc_table
 	lock_acquire(proc_table_lock);
 	proc_table[proc->p_pid] = NULL;
@@ -389,6 +399,10 @@ proc_console_init(struct proc *proc)
 	struct vnode *v;
 	int result;
 	char dev_name[5];
+	for(int i=0;i<__OPEN_MAX;i++)
+	{
+		proc->p_filetable[i] = NULL;
+	}
 	snprintf(dev_name,sizeof(dev_name),"con:");
 	result = vfs_open(dev_name,O_RDONLY,0,&v);
 	if(result)
@@ -407,6 +421,14 @@ proc_console_init(struct proc *proc)
 		return result;
 	proc_create_file_handle(proc,2,v,0,O_WRONLY);
 	proc->p_lastest_fd = 2;
+
+	proc->p_cv_lock = lock_create("p_cv_lock");
+	proc->p_cv = cv_create("p_cv");
+	proc->p_exit_status = false;
+	proc->p_pid = 2;
+	proc->p_ppid = 0;
+	proc_latest_pid=2;
+	proc_table[proc->p_pid] = proc;
 	return 0;
 }
 
@@ -414,8 +436,8 @@ proc_console_init(struct proc *proc)
 void
 proc_user_init()
 {
-	proc_table[0] = kmalloc(sizeof(struct proc));
-	proc_table[1] = kmalloc(sizeof(struct proc));
+	/*proc_table[0] = kmalloc(sizeof(struct proc));*/
+	/*proc_table[1] = kmalloc(sizeof(struct proc));*/
 	proc_latest_pid=1;
 	proc_table_lock = lock_create("table_lock");
 }
@@ -423,26 +445,27 @@ proc_user_init()
 pid_t
 proc_get_available_pid()
 {
-	lock_acquire(proc_table_lock);
 	pid_t temp_pid = proc_latest_pid;
 	temp_pid++;
 	while(proc_table[temp_pid]!=NULL) {
 		if(temp_pid == proc_latest_pid)
 		{
-			lock_release(proc_table_lock);
 			return -1;
 		}
 		temp_pid = (temp_pid+1)%__PID_MAX;
+		if(temp_pid == 0)
+			temp_pid = 2;
 	}
-	lock_release(proc_table_lock);
 	return temp_pid;
 }
 
 int proc_copy_file_handle(struct file_handle *old, struct file_handle *new){
+	struct file_handle *dummy;
 	if(old == NULL)
 		return 0;
 	old->fh_nreferences += 1;
-	(void)new;
+	dummy = new;
+	kprintf("i%d",(int)dummy);
 	new = old;
 	return 0;
 }

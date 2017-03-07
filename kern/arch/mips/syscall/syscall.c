@@ -49,6 +49,8 @@
 #include <addrspace.h>
 #include <proc.h>
 #include <fork_syscall.h>
+#include <waitpid_syscall.h>
+#include <_exit_syscall.h>
 
 /*
  * System call dispatcher.
@@ -165,6 +167,14 @@ syscall(struct trapframe *tf)
 
 		case SYS_fork:
 		err = sys_fork(tf, &retval);
+		break;
+
+		case SYS_waitpid:
+		err = sys_waitpid((pid_t)tf->tf_a0, (userptr_t)tf->tf_a1, (int)tf->tf_a2, &retval);
+		break;
+
+		case SYS__exit:
+		err = sys__exit((int)tf->tf_a0);
 		break;
 
 	    default:
