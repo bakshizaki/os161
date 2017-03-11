@@ -42,6 +42,7 @@ int sys_read(int fd, userptr_t buf, size_t bytes_to_read, int32_t *retval)
 		return result;
 	}
 	*retval = u.uio_offset - initial_offset;
+	current_proc->p_filetable[fd]->fh_offset = u.uio_offset;
 	lock_release(current_proc->p_filetable[fd]->fh_accesslock);
 	return result;
 }

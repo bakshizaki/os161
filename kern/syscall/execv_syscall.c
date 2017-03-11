@@ -91,9 +91,9 @@ int sys_execv(char * program, char **args)
 		temp_args += 1;
 
 	}
-	kprintf("Array:\n");
-	for(i=0; i<argc; i++)
-		kprintf("%d ", arg_size_array[i]);
+	/*kprintf("Array:\n");*/
+	/*for(i=0; i<argc; i++)*/
+		/*kprintf("%d ", arg_size_array[i]);*/
 
 	result = krunprogram(kprogram, &entrypoint, &stackptr, oldas);
 	if(result)
