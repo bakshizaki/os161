@@ -23,9 +23,17 @@ int sys_fork(struct trapframe *tf, int32_t *retval)
 	lock_acquire(proc_table_lock);
 	child_pid = proc_get_available_pid();
 	if(child_pid == -1)
+	{
+		lock_release(proc_table_lock);
 		return EMPROC;
+	}
 	snprintf(childname, sizeof(childname), "%d", child_pid);
 	child_proc = proc_create_runprogram(childname);
+	if(child_proc == NULL)
+	{
+		lock_release(proc_table_lock);
+		return ENOMEM;
+	}
 	child_proc->p_pid = child_pid;
 	child_proc->p_ppid = curproc->p_pid;
 	for(int i=0; i<__OPEN_MAX; i++)
@@ -45,16 +53,35 @@ int sys_fork(struct trapframe *tf, int32_t *retval)
 	child_proc->p_lastest_fd = curproc->p_lastest_fd;
 	child_proc->p_exit_status = false;
 	child_proc->p_cv_lock = lock_create("p_cv_lock");
+	if(child_proc->p_cv_lock== NULL)
+	{
+		lock_release(proc_table_lock);
+		return ENOMEM;
+	}
 	child_proc->p_cv = cv_create("p_cv");
+	if(child_proc->p_cv == NULL)
+	{
+		lock_release(proc_table_lock);
+		return ENOMEM;
+	}
 	child_trapframe = kmalloc(sizeof(struct trapframe));
+	if(child_trapframe == NULL)
+	{
+		lock_release(proc_table_lock);
+		return ENOMEM;
+	}
 	*child_trapframe = *tf;
 	result = as_copy(curproc->p_addrspace, &child_proc->p_addrspace);
 	if(result)
+	{
+		lock_release(proc_table_lock);
 		return result;
+	}
 	snprintf(threadname, sizeof(threadname), "thread_%d", child_pid);
 	result = thread_fork(threadname, child_proc, fork_proc_wrapper, child_trapframe, 1);
 	if(result) {
 		/*kfree(child_trapframe);*/
+		lock_release(proc_table_lock);
 		proc_destroy(child_proc);
 		return result;
 	}
