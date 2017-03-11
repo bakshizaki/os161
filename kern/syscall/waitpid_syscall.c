@@ -8,6 +8,7 @@
 
 int sys_waitpid(pid_t pid, userptr_t status, int options, int32_t *retval)
 {
+	int result;
 	struct proc *child_proc;	
 	if(options != 0)
 		return EINVAL;
@@ -28,7 +29,9 @@ int sys_waitpid(pid_t pid, userptr_t status, int options, int32_t *retval)
 		*retval = pid;
 		return 0;
 	}
-	copyout(&(child_proc->p_exit_code), status, sizeof(child_proc->p_exit_code));
+	result = copyout(&(child_proc->p_exit_code), status, sizeof(child_proc->p_exit_code));
+	if(result)
+		return EFAULT;
 	*retval = pid;
 	proc_destroy(child_proc);
 	return 0;

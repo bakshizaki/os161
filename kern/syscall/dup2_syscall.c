@@ -11,9 +11,9 @@ int sys_dup2(int oldfd, int newfd, int32_t *retval)
 	int result = -1;
 	struct proc *current_proc;
 	current_proc = curthread->t_proc;
-	if(oldfd<0 || oldfd>OPEN_MAX)
+	if(oldfd<0 || oldfd>=OPEN_MAX)
 		return EBADF;
-	if(newfd<0 || newfd>OPEN_MAX)
+	if(newfd<0 || newfd>=OPEN_MAX)
 		return EBADF;
 	if(current_proc->p_filetable[oldfd]==NULL)
 		return EBADF;
@@ -22,6 +22,7 @@ int sys_dup2(int oldfd, int newfd, int32_t *retval)
 	if(oldfd == newfd)
 	{
 		*retval = newfd;
+		lock_release(current_proc->p_filetable[oldfd]->fh_accesslock);
 		return 0;
 	}
 
@@ -29,9 +30,14 @@ int sys_dup2(int oldfd, int newfd, int32_t *retval)
 	{
 		result = sys_close(newfd, retval);
 		if(result)
+		{
+			lock_release(current_proc->p_filetable[oldfd]->fh_accesslock);
 			return result;
+		}
 	}
 	current_proc->p_filetable[newfd] = current_proc->p_filetable[oldfd];
+	current_proc->p_filetable[newfd]->fh_nreferences +=1;
 	*retval = newfd;
+	lock_release(current_proc->p_filetable[oldfd]->fh_accesslock);
 	return 0;
 }

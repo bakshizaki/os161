@@ -7,7 +7,7 @@
 
 int sys_close(int fd, int32_t *retval)
 {
-	if(fd<0 || fd>OPEN_MAX)
+	if(fd<0 || fd>=OPEN_MAX)
 		return EBADF;
 	if(curproc->p_filetable[fd]==NULL)
 		return EBADF;

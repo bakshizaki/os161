@@ -147,7 +147,7 @@ syscall(struct trapframe *tf)
 
 		case SYS_lseek:
 		copyin((const_userptr_t) tf->tf_sp+16,&lseek_whence, sizeof(lseek_whence));
-		err = sys_lseek((int)tf->tf_a0,(off_t)((off_t)tf->tf_a2)|tf->tf_a3,lseek_whence,&retval,&retval2);
+		err = sys_lseek((int)tf->tf_a0,(off_t)((off_t)tf->tf_a2)<<32|tf->tf_a3,lseek_whence,&retval,&retval2);
 		break;
 
 		case SYS_dup2:
@@ -179,7 +179,7 @@ syscall(struct trapframe *tf)
 		break;
 
 		case SYS_execv:
-		err = sys_execv((userptr_t) tf->tf_a0, (userptr_t*) tf->tf_a1, &retval);
+		err = sys_execv((char *) tf->tf_a0, (char**) tf->tf_a1);
 		break;
 
 	    default:

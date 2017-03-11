@@ -56,28 +56,28 @@ main(int argc, char **argv)
 
 	(void) argc;
 	(void) argv;
-	const char *test_arg[10] = {"test1", "test2", "test3" };
-	test_arg[3] = NULL;
+	/*const char *test_arg[10] = {"/testbin/argtest", "foo", "os161", "bar" };*/
+	/*test_arg[4] = NULL;*/
 	printf("Hello World3\n");
-	execv("test_prog", (char **)test_arg);
-	int pid;
-	int pid2;
-	pid = fork();
-	if(pid == -1)
-	{
-		printf("fork failed");
-		exit(1);
-	} else if(pid == 0) {
-		printf("Hello from child\n");
-		/*while(1);*/
-		_exit(0);
-	} else {
-		int status;
-		pid2 = waitpid(pid, &status, 0);
-		printf("Hello from parent\n");
-		printf("Child pid:%d\n", pid);
-		printf("Wait pid:%d\n",pid2);
-		/*while(1);*/
-	}
+	/*execv("test_prog", (char **)test_arg);*/
+	/*int pid;*/
+	/*int pid2;*/
+	/*pid = fork();*/
+	/*if(pid == -1)*/
+	/*{*/
+		/*printf("fork failed");*/
+		/*exit(1);*/
+	/*} else if(pid == 0) {*/
+		/*printf("Hello from child\n");*/
+		/*[>while(1);<]*/
+		/*_exit(0);*/
+	/*} else {*/
+		/*int status;*/
+		/*pid2 = waitpid(pid, &status, 0);*/
+		/*printf("Hello from parent\n");*/
+		/*printf("Child pid:%d\n", pid);*/
+		/*printf("Wait pid:%d\n",pid2);*/
+		/*[>while(1);<]*/
+	/*}*/
 	return 0;
 }

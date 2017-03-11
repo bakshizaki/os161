@@ -383,7 +383,7 @@ void
 proc_destroy_file_handle(struct proc *proc,int fd)
 {
 	KASSERT(proc!=NULL);
-	KASSERT(fd>=0 && fd<__OPEN_MAX);
+	KASSERT(fd>=0 && fd<=__OPEN_MAX);
 	proc->p_filetable[fd]->fh_nreferences--;
 	if(proc->p_filetable[fd]->fh_nreferences == 0) {
 		vfs_close(proc->p_filetable[fd]->fh_vnode);
