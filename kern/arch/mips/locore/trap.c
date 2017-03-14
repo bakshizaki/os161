@@ -39,6 +39,7 @@
 #include <vm.h>
 #include <mainbus.h>
 #include <syscall.h>
+#include <_exit_syscall.h>
 
 
 /* in exception-*.S */
@@ -107,7 +108,7 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 		sig = SIGFPE;
 		break;
 	}
-
+	sys__exit(123456);
 	/*
 	 * You will probably want to change this.
 	 */
