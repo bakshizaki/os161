@@ -34,6 +34,7 @@ int sys_waitpid(pid_t pid, userptr_t status, int options, int32_t *retval)
 		return EFAULT;
 	*retval = pid;
 	proc_destroy(child_proc);
+	proc_table[pid] = NULL;
 	return 0;
 }
 
