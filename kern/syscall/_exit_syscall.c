@@ -23,7 +23,10 @@ int sys__exit(int exitcode)
 		current_proc->p_exit_status = true;
 		cv_signal(parent_proc->p_cv, parent_proc->p_cv_lock);
 		lock_release(parent_proc->p_cv_lock);
+	} else {
+		proc_destroy(current_proc);
 	}
+
 	current_proc->p_exit_status = true;
 	thread_exit();
 }
