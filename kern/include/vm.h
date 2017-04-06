@@ -44,6 +44,13 @@
 #define VM_FAULT_WRITE       1    /* A write was attempted */
 #define VM_FAULT_READONLY    2    /* A write to a readonly page was attempted*/
 
+struct coremap_entry {
+	bool is_allocated:1;
+	bool is_last_page:1;
+};
+paddr_t alloc_one_page(void);
+paddr_t alloc_mul_page(unsigned npages);
+void coremap_bootstrap(void);
 
 /* Initialization function */
 void vm_bootstrap(void);

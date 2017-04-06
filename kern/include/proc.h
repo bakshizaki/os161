@@ -57,7 +57,7 @@ struct file_handle {
 
 // This is process table
 //struct proc* proc_table[__PID_MAX];
-struct proc* proc_table[4000];
+struct proc* proc_table[256];
 pid_t proc_latest_pid;
 struct lock *proc_table_lock;
 /*
