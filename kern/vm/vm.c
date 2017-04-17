@@ -42,7 +42,7 @@ coremap_bootstrap() {
 
 	fixedspace_lastaddr = ram_getfirstfree();
 	fixed_size = (fixedspace_lastaddr / PAGE_SIZE);
-    nfixed_entries = fixed_size + ((fixed_size % PAGE_SIZE > 0) ? 1 : 0);
+    nfixed_entries = fixed_size + ((fixedspace_lastaddr % PAGE_SIZE > 0) ? 1 : 0);
 
     unsigned int i;
     npages_allocated = nfixed_entries;
