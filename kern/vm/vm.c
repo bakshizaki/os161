@@ -340,7 +340,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 			as_zero_region(paddr, 1);
 			paddr = paddr & PAGE_FRAME;
 			add_pte(vpn, (paddr>>12), page_permission, &(as->pagetable_head), &(as->pagetable_tail));
-			//TODO: bzero
+			as->total_pages++;
 		
 	}
 	

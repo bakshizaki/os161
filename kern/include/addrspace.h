@@ -83,6 +83,7 @@ struct addrspace {
 	paddr_t heap_start;
 	paddr_t heap_break;
 	paddr_t max_heap;
+	int32_t total_pages;
 #endif
 };
 
@@ -157,7 +158,7 @@ int add_segment(vaddr_t as_vbase, size_t as_npages, int permission, struct segme
 void delete_segment_list(struct segment **head);
 int add_pte(uint32_t vpn, uint32_t ppn, int permission, struct pte **head, struct pte **tail);
 void delete_pagetable(struct pte **head,struct pte **tail );
-void delete_pages(struct pte **pagetable_head);
+void delete_pages(struct pte **pagetable_head, struct addrspace *as);
 //static void as_zero_region(paddr_t paddr, unsigned npages);
 struct pte *search_pagetable(struct pte **pagetable_head, uint32_t vpn);
 

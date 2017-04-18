@@ -95,7 +95,7 @@ int sys_execv(char * program, char **args)
 	/*for(i=0; i<argc; i++)*/
 		/*kprintf("%d ", arg_size_array[i]);*/
 
-	result = krunprogram(kprogram, &entrypoint, &stackptr, oldas);
+	result = krunprogram(kprogram, &entrypoint, &stackptr, &oldas);
 	if(result)
 		return result;
 
@@ -131,6 +131,12 @@ int sys_execv(char * program, char **args)
 		}
 	}
 
+	// destroy addrspace of old process
+	as_destroy(oldas);
+	kfree(buffer);
+	kfree(arg_size_array);
+	kfree(arg_ptr_array);
+
 
 	/* Warp to user mode. */
 	enter_new_process(argc /*argc*/, (userptr_t)stackptr /*userspace addr of argv*/,
@@ -144,7 +150,7 @@ int sys_execv(char * program, char **args)
 }
 
 
-int krunprogram(char *progname, vaddr_t *entrypoint, vaddr_t *stackptr, struct addrspace *oldas)
+int krunprogram(char *progname, vaddr_t *entrypoint, vaddr_t *stackptr, struct addrspace **oldas)
 {
 	struct addrspace *as;
 	struct vnode *v;
@@ -166,7 +172,7 @@ int krunprogram(char *progname, vaddr_t *entrypoint, vaddr_t *stackptr, struct a
 	}
 
 	/* save old as before switching*/
-	oldas = proc_getas();
+	*oldas = proc_getas();
 
 	/* Switch to it and activate it. */
 	proc_setas(as);
@@ -176,7 +182,7 @@ int krunprogram(char *progname, vaddr_t *entrypoint, vaddr_t *stackptr, struct a
 	result = load_elf(v, entrypoint);
 	if (result) {
 		/* p_addrspace will go away when curproc is destroyed */
-		switch_back_oldas(oldas);
+		switch_back_oldas(*oldas);
 		vfs_close(v);
 		return result;
 	}
@@ -188,7 +194,7 @@ int krunprogram(char *progname, vaddr_t *entrypoint, vaddr_t *stackptr, struct a
 	result = as_define_stack(as, stackptr);
 	if (result) {
 		/* p_addrspace will go away when curproc is destroyed */
-		switch_back_oldas(oldas);
+		switch_back_oldas(*oldas);
 		return result;
 	}
 	return 0;

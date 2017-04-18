@@ -58,6 +58,7 @@ as_create(void)
 	as->heap_start = 0;
 	as->heap_break = 0;
 	as->max_heap = 0;
+	as->total_pages = 0;
 
 	return as;
 }
@@ -101,6 +102,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 			result = add_pte(temp_pte->vpn, (temp_paddr>>12), temp_pte->permission, &(new->pagetable_head), &(new->pagetable_tail));
 			if(result)
 				return ENOMEM;
+			new->total_pages++;
 			memmove((void *) PADDR_TO_KVADDR(temp_paddr), (const void *)PADDR_TO_KVADDR((temp_pte->ppn)<<12), PAGE_SIZE);
 			
 		}
@@ -122,7 +124,7 @@ void
 as_destroy(struct addrspace *as)
 {
 	delete_segment_list(&(as->segment_head));
-	delete_pages(&(as->pagetable_head));
+	delete_pages(&(as->pagetable_head), as);
 	delete_pagetable(&(as->pagetable_head),&(as->pagetable_tail));
 
 	kfree(as);
@@ -198,10 +200,23 @@ int
 as_prepare_load(struct addrspace *as)
 {
 	struct segment * temp_segment = as->segment_head;
+	// base and npages for last segment
+	vaddr_t vbase = 0;
+	size_t npages = 0;
+	int is_segment_found = 0;
 	while(temp_segment != NULL)
 	{
+		is_segment_found = 1;
 		temp_segment->permission = 7;
+		vbase = temp_segment->as_vbase;
+		npages = temp_segment->as_npages;
 		temp_segment = temp_segment->next;
+	}
+	if(is_segment_found)
+	{
+		as->heap_start = vbase+npages * PAGE_SIZE;
+		as->heap_break = as->heap_start;
+
 	}
 	return 0;
 }
@@ -325,7 +340,7 @@ void delete_pagetable(struct pte **head,struct pte **tail )
     *tail = NULL;
 }
 // delete all pages from memory present in pagetable
-void delete_pages(struct pte **pagetable_head)
+void delete_pages(struct pte **pagetable_head, struct addrspace *as)
 {
 	struct pte *temp = *pagetable_head;
 	while(temp != NULL)
@@ -333,6 +348,7 @@ void delete_pages(struct pte **pagetable_head)
 		if(temp->is_valid == 1) // if page in physical memory
 		{
 			free_kpages(PADDR_TO_KVADDR(temp->ppn << 12));
+			as->total_pages--;
 		}
 		else {
 			// remove physical pages
