@@ -48,6 +48,24 @@ struct vnode;
  * You write this.
  */
 
+// custom data structures
+struct segment {
+	vaddr_t as_vbase;
+	size_t as_npages;
+	int permission;
+	int backup_permission;
+	struct segment *next;
+};
+
+struct pte {
+	uint32_t vpn;
+	uint32_t ppn;
+	int permission;
+	bool is_valid;		//if 1 then in memory else in disk
+	bool is_referenced;
+	struct pte *next;
+};
+
 struct addrspace {
 #if OPT_DUMBVM
         vaddr_t as_vbase1;
@@ -59,6 +77,12 @@ struct addrspace {
         paddr_t as_stackpbase;
 #else
         /* Put stuff here for your VM system */
+	struct segment * segment_head;
+	struct pte * pagetable_head;
+	struct pte * pagetable_tail;
+	paddr_t heap_start;
+	paddr_t heap_break;
+	paddr_t max_heap;
 #endif
 };
 
@@ -128,5 +152,13 @@ int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 
 int load_elf(struct vnode *v, vaddr_t *entrypoint);
 
+//////// prototype for custom functions
+int add_segment(vaddr_t as_vbase, size_t as_npages, int permission, struct segment **head);
+void delete_segment_list(struct segment **head);
+int add_pte(uint32_t vpn, uint32_t ppn, int permission, struct pte **head, struct pte **tail);
+void delete_pagetable(struct pte **head,struct pte **tail );
+void delete_pages(struct pte **pagetable_head);
+//static void as_zero_region(paddr_t paddr, unsigned npages);
+struct pte *search_pagetable(struct pte **pagetable_head, uint32_t vpn);
 
 #endif /* _ADDRSPACE_H_ */
