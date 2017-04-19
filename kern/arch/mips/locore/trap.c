@@ -108,7 +108,7 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 		sig = SIGFPE;
 		break;
 	}
-	sys__exit(123456);
+	sys__exit(sig, 1);
 	/*
 	 * You will probably want to change this.
 	 */

@@ -721,6 +721,7 @@ test10(void)
 	n = 0;
 	while ((p = sbrk(PAGE_SIZE)) != (void *)-1) {
 		markpagelight(op, n);
+		printf("page = %d\n",n);
 		n++;
 	}
 	tprintf("Got %u pages (%zu bytes).\n", n, (size_t)PAGE_SIZE * n);

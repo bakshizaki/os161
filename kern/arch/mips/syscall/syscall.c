@@ -52,6 +52,7 @@
 #include <waitpid_syscall.h>
 #include <_exit_syscall.h>
 #include <execv_syscall.h>
+#include <sbrk_syscall.h>
 
 /*
  * System call dispatcher.
@@ -175,11 +176,15 @@ syscall(struct trapframe *tf)
 		break;
 
 		case SYS__exit:
-		err = sys__exit((int)tf->tf_a0);
+		err = sys__exit((int)tf->tf_a0, 0);
 		break;
 
 		case SYS_execv:
 		err = sys_execv((char *) tf->tf_a0, (char**) tf->tf_a1);
+		break;
+
+		case SYS_sbrk:
+		err = sys_sbrk((intptr_t) tf->tf_a0, &retval);
 		break;
 
 	    default:

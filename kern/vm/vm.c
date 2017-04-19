@@ -13,7 +13,7 @@
 
 /* under dumbvm, always have 72k of user stack */
 /* (this must be > 64K so argument blocks of size ARG_MAX will fit) */
-#define VM_STACKPAGES    801
+//#define VM_STACKPAGES    801
 
 static struct coremap_entry * coremap;
 static struct spinlock coremap_spinlock = SPINLOCK_INITIALIZER;
@@ -202,6 +202,12 @@ coremap_used_bytes() {
 	return npages_allocated * PAGE_SIZE;
 }
 
+unsigned
+int
+coremap_free_space() {
+	return (nentries_coremap - npages_allocated - 100) * PAGE_SIZE;
+}
+
 void
 vm_tlbshootdown(const struct tlbshootdown *ts)
 {
@@ -299,6 +305,8 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 			page_permission = PF_R | PF_W;
 		}
 	}
+	goto looping;
+looping:
 	if(is_segment_found == 0)
 		return EFAULT;
 	

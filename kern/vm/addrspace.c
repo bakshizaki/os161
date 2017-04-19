@@ -216,7 +216,10 @@ as_prepare_load(struct addrspace *as)
 	{
 		as->heap_start = vbase+npages * PAGE_SIZE;
 		as->heap_break = as->heap_start;
-
+		as->max_heap = USERSTACK - (VM_STACKPAGES * PAGE_SIZE);
+		//as->max_heap = as->heap_start + coremap_free_space();
+		KASSERT((as->heap_break & PAGE_FRAME) == as->heap_break);
+		KASSERT((as->max_heap & PAGE_FRAME) == as->max_heap);
 	}
 	return 0;
 }
@@ -356,6 +359,30 @@ void delete_pages(struct pte **pagetable_head, struct addrspace *as)
 		temp = temp->next;
 	}
 }
+
+void delete_one_page(vaddr_t page_addr, struct addrspace *as)
+{
+	uint32_t vpn;
+	struct pte * temp_pte;
+
+	//make sure its page aligned
+	KASSERT((page_addr & PAGE_FRAME) == page_addr);
+	vpn = page_addr >> 12;
+	temp_pte = search_pagetable(&(as->pagetable_head), vpn);
+	if(temp_pte == NULL)
+		return;
+	if(temp_pte->is_valid == 1) // if page in physical memory
+	{
+		free_kpages(PADDR_TO_KVADDR(temp_pte->ppn << 12));
+		as->total_pages--;
+	}
+	else {
+		// remove physical pages
+	}
+	delete_one_entry_from_pagetable(&(as->pagetable_head), &(as->pagetable_tail), vpn);
+	
+
+}
 struct pte *
 search_pagetable(struct pte **pagetable_head, uint32_t vpn)
 {
@@ -369,5 +396,40 @@ search_pagetable(struct pte **pagetable_head, uint32_t vpn)
 		temp_pte = temp_pte->next;
 	}
 	return NULL;
+
+}
+
+void
+delete_one_entry_from_pagetable(struct pte **pagetable_head, struct pte **pagetable_tail, uint32_t vpn)
+{
+	struct pte * temp_pte = *pagetable_head;
+	struct pte * prev_pte = NULL;
+	if(temp_pte == NULL)
+		return;
+
+	// if found on first element
+	if(temp_pte->vpn == vpn)
+	{
+		*pagetable_head = temp_pte->next;
+		kfree(temp_pte);
+		return;
+	}
+	while(temp_pte != NULL)
+	{
+		if(temp_pte->vpn == vpn)
+		{
+			break;
+		}
+		prev_pte = temp_pte;
+		temp_pte = temp_pte->next;
+	}
+
+	if(temp_pte->vpn == vpn)
+	{
+		if(temp_pte == *pagetable_tail)
+			*pagetable_tail = prev_pte;
+		prev_pte->next = temp_pte->next;
+		kfree(temp_pte);
+	}
 
 }

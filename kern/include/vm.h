@@ -44,6 +44,7 @@
 #define VM_FAULT_WRITE       1    /* A write was attempted */
 #define VM_FAULT_READONLY    2    /* A write to a readonly page was attempted*/
 
+#define VM_STACKPAGES    801
 struct coremap_entry {
 	bool is_allocated:1;
 	bool is_last_page:1;
@@ -68,6 +69,7 @@ void free_kpages(vaddr_t addr);
  * to the caller. But it should have been correct at some point in time.
  */
 unsigned int coremap_used_bytes(void);
+unsigned int coremap_free_space(void);
 
 /* TLB shootdown handling called from interprocessor_interrupt */
 void vm_tlbshootdown(const struct tlbshootdown *);

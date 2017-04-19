@@ -7,11 +7,14 @@
 #include <synch.h>
 #include <_exit_syscall.h>
 
-int sys__exit(int exitcode)
+int sys__exit(int exitcode, int is_signal)
 {
 	struct proc *parent_proc;
 	struct proc *current_proc;
-	curproc->p_exit_code = _MKWAIT_EXIT(exitcode);
+	if(is_signal)
+		curproc->p_exit_code = _MKWAIT_SIG(exitcode);
+	else
+		curproc->p_exit_code = _MKWAIT_EXIT(exitcode);
 	current_proc = curthread->t_proc;
 	
 	parent_proc = proc_table[curproc->p_ppid];

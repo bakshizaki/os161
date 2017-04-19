@@ -467,4 +467,22 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	splx(spl);
 	return 0;
 }
+//////////////// sbrk //////////////////
 
+int sys_sbrk(intptr_t amount, int32_t *retval)
+{
+	vaddr_t heap_start = proc_getas()->heap_start;
+	vaddr_t heap_break = proc_getas()->heap_break;
+	vaddr_t max_heap = proc_getas()->max_heap;
+	vaddr_t temp_heap_break = heap_break;
+	if(amount & PAGE_FRAME != amount)
+		return EINVAL;
+	temp_heap_break = temp_heap_break + amount;
+	if(temp_heap_break < heap_start)
+		return EINVAL;
+	if(temp_heap_break>= max_heap)
+		return ENOMEM;
+	*retval = heap_break;
+	proc_getas()->heap_break = temp_heap_break;
+	return 0;
+}
