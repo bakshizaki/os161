@@ -217,6 +217,7 @@ as_prepare_load(struct addrspace *as)
 		as->heap_start = vbase+npages * PAGE_SIZE;
 		as->heap_break = as->heap_start;
 		as->max_heap = USERSTACK - (VM_STACKPAGES * PAGE_SIZE);
+		/*as->max_heap = as->heap_start + (256 * PAGE_SIZE);*/
 		//as->max_heap = as->heap_start + coremap_free_space();
 		KASSERT((as->heap_break & PAGE_FRAME) == as->heap_break);
 		KASSERT((as->max_heap & PAGE_FRAME) == as->max_heap);
@@ -380,6 +381,7 @@ void delete_one_page(vaddr_t page_addr, struct addrspace *as)
 		// remove physical pages
 	}
 	delete_one_entry_from_pagetable(&(as->pagetable_head), &(as->pagetable_tail), vpn);
+	as_activate();
 	
 
 }
