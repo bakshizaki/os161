@@ -62,7 +62,8 @@ struct pte {
 	uint32_t ppn;
 	int permission;
 	bool is_valid;		//if 1 then in memory else in disk
-	bool is_referenced;
+	off_t disk_location_index;
+	struct lock * pte_lock;
 	struct pte *next;
 };
 
@@ -156,7 +157,7 @@ int load_elf(struct vnode *v, vaddr_t *entrypoint);
 //////// prototype for custom functions
 int add_segment(vaddr_t as_vbase, size_t as_npages, int permission, struct segment **head);
 void delete_segment_list(struct segment **head);
-int add_pte(uint32_t vpn, uint32_t ppn, int permission, struct pte **head, struct pte **tail);
+int add_pte(uint32_t vpn, uint32_t ppn, int permission, struct pte **head, struct pte **tail, struct pte **added_pte);
 void delete_pagetable(struct pte **head,struct pte **tail );
 void delete_one_page(vaddr_t page_addr, struct addrspace *as);
 void delete_one_entry_from_pagetable(struct pte **pagetable_head, struct pte **pagetable_tail, uint32_t vpn);

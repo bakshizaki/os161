@@ -48,7 +48,12 @@
 struct coremap_entry {
 	bool is_allocated:1;
 	bool is_last_page:1;
+	bool is_fixed:1;
+	struct pte * coremap_pte;
+	bool is_referenced:1;
+
 };
+struct coremap_entry * coremap;
 paddr_t alloc_one_page(void);
 paddr_t alloc_mul_page(unsigned npages);
 void coremap_bootstrap(void);

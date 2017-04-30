@@ -95,13 +95,20 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	{
 		if(temp_pte->is_valid == 1)
 		{
+			int coremap_index;
+			struct pte *added_pte;
 			temp_paddr = alloc_kpages(1);
 			if(temp_paddr == 0)
 				return ENOMEM;
 			temp_paddr = KVADDR_TO_PADDR(temp_paddr);
-			result = add_pte(temp_pte->vpn, (temp_paddr>>12), temp_pte->permission, &(new->pagetable_head), &(new->pagetable_tail));
+			coremap_index = temp_paddr / PAGE_SIZE;
+			result = add_pte(temp_pte->vpn, (temp_paddr>>12), temp_pte->permission, &(new->pagetable_head), &(new->pagetable_tail), &added_pte);
 			if(result)
 				return ENOMEM;
+			//put pte address in coremap
+			coremap[coremap_index].coremap_pte = added_pte;
+			// make is fixed bit as 0
+			coremap[coremap_index].is_fixed = 0;
 			new->total_pages++;
 			memmove((void *) PADDR_TO_KVADDR(temp_paddr), (const void *)PADDR_TO_KVADDR((temp_pte->ppn)<<12), PAGE_SIZE);
 			
@@ -300,7 +307,7 @@ void delete_segment_list(struct segment **head)
 }
 
 
-int add_pte(uint32_t vpn, uint32_t ppn, int permission, struct pte **head, struct pte **tail)
+int add_pte(uint32_t vpn, uint32_t ppn, int permission, struct pte **head, struct pte **tail, struct pte **added_pte)
 {
 	struct pte *temp = (struct pte *) kmalloc(sizeof(struct pte));
 	if (temp == NULL)
@@ -310,17 +317,18 @@ int add_pte(uint32_t vpn, uint32_t ppn, int permission, struct pte **head, struc
 	temp->permission = permission;
 	temp->next = NULL;
 	temp->is_valid = 1;
-	temp->is_referenced = 1;
 
 	if(*tail == NULL)
 	{
 		*head = temp;
 		*tail = temp;
+		*added_pte = temp;
 		return 0;
 	}
 
 	(*tail)->next = temp;
 	(*tail) = (*tail)->next;
+	*added_pte = temp;
 	return 0;
 }
 

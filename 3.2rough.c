@@ -486,3 +486,8 @@ int sys_sbrk(intptr_t amount, int32_t *retval)
 	proc_getas()->heap_break = temp_heap_break;
 	return 0;
 }
+
+
+Things to do
+1. mark fixed pages for kmalloc.
+

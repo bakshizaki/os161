@@ -15,7 +15,7 @@
 /* (this must be > 64K so argument blocks of size ARG_MAX will fit) */
 //#define VM_STACKPAGES    801
 
-static struct coremap_entry * coremap;
+/*static struct coremap_entry * coremap;*/
 static struct spinlock coremap_spinlock = SPINLOCK_INITIALIZER;
 unsigned int latest_page;
 unsigned int npages_allocated;
@@ -47,8 +47,10 @@ coremap_bootstrap() {
 
     unsigned int i;
     npages_allocated = nfixed_entries;
+	//mark kernel + coremap pages allocated and fixed
     for(i = 0; i < nfixed_entries; i++) {
     	coremap[i].is_allocated = 1;
+		coremap[i].is_fixed = 1;
     }
 
     latest_page = nfixed_entries;
@@ -90,6 +92,7 @@ alloc_one_page() {
 	pa = temp_index;
 	coremap[temp_index].is_allocated = 1;
 	coremap[temp_index].is_last_page = 1;
+	coremap[temp_index].is_fixed = 1;
 	latest_page = temp_index;
 	npages_allocated++;
 	return pa * PAGE_SIZE; 
@@ -130,9 +133,11 @@ alloc_mul_page(unsigned npages) {
 			if(count == 0) {
 				for(i = init_index; i<temp_index ; i++) {
 					coremap[i].is_allocated = 1;
+					coremap[i].is_fixed = 1;
 				}
 				coremap[i].is_allocated = 1;
 				coremap[i].is_last_page = 1;
+				coremap[i].is_fixed = 1;
 				pa = init_index;
 				latest_page = temp_index;
 				npages_allocated += npages;
@@ -187,10 +192,12 @@ free_kpages(vaddr_t addr)
 		while(coremap[page_index].is_last_page != 1)
 		{
 			coremap[page_index].is_allocated = 0;
+			coremap[page_index].is_fixed = 0;
 			page_index = (page_index + 1) % nentries;
 			npages_allocated--;
 		}
 		coremap[page_index].is_allocated = 0;
+		coremap[page_index].is_fixed = 0;
 		coremap[page_index].is_last_page = 0;
 		npages_allocated--;
 		spinlock_release(&coremap_spinlock);
@@ -329,6 +336,7 @@ looping:
 		if(faulttype == VM_FAULT_WRITE && (( temp_pte->permission & PF_W  )== 0))
 			return EFAULT;
 
+		//pte lock acquire
 		//check if page in memory
 		if(temp_pte->is_valid)
 		{
@@ -341,13 +349,21 @@ looping:
 
 	}
 	else { // we did not find vpn in pagetable
+			int coremap_index;
+			struct pte *added_pte;
 			paddr = alloc_kpages(1);
 			if(paddr == 0)
 				return ENOMEM;
 			paddr = KVADDR_TO_PADDR(paddr);
+			coremap_index = paddr / PAGE_SIZE;
 			as_zero_region(paddr, 1);
 			paddr = paddr & PAGE_FRAME;
-			add_pte(vpn, (paddr>>12), page_permission, &(as->pagetable_head), &(as->pagetable_tail));
+			add_pte(vpn, (paddr>>12), page_permission, &(as->pagetable_head), &(as->pagetable_tail), &added_pte);
+			//put pte address in coremap
+			coremap[coremap_index].coremap_pte = added_pte;
+			// make is fixed bit as 0
+			coremap[coremap_index].is_fixed = 0;
+			//TODO: acquire pte lock
 			as->total_pages++;
 		
 	}
@@ -372,6 +388,7 @@ looping:
 
 		DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
 		tlb_write(ehi, elo, i);
+		//pte lock release
 		splx(spl);
 		return 0;
 	}
@@ -384,6 +401,7 @@ looping:
 		elo = paddr | TLBLO_VALID;
 	DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
 	tlb_random(ehi, elo);
+	//pte lock release
 	splx(spl);
 	return 0;
 }
