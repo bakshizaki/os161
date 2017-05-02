@@ -116,7 +116,8 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 			spinlock_release(&coremap_spinlock);
 			new->total_pages++;
 			memmove((void *) PADDR_TO_KVADDR(temp_paddr), (const void *)PADDR_TO_KVADDR((temp_pte->ppn)<<12), PAGE_SIZE);
-			
+		if(lock_do_i_hold(temp_pte->pte_lock))
+			lock_release(temp_pte->pte_lock);
 		}
 		else {
 			//page is on disk? what do we do now?
@@ -140,7 +141,8 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 			new->total_pages++;
 			block_read(temp_pte->disk_location_index,PADDR_TO_KVADDR(temp_paddr));
 		}
-		lock_release(temp_pte->pte_lock);
+		if(lock_do_i_hold(temp_pte->pte_lock))
+			lock_release(temp_pte->pte_lock);
 		temp_pte = temp_pte->next;
 
 	}

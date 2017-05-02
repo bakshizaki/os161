@@ -559,7 +559,7 @@ int swapout(unsigned int* evicted_page)
 
 	//check if thaat process is running
 	if(temp_thread!=NULL)
-	if( temp_thread->t_state == S_RUN)
+	if( temp_thread->t_state == S_RUN && temp_thread->t_cpu!=(void *)0xdeadbeef)
 	{
 		targetcpu = temp_thread->t_cpu;
 		ipi_tlbshootdown(targetcpu, &fakestruct);
