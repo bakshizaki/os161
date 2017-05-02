@@ -531,6 +531,7 @@ int swapout(unsigned int* evicted_page)
 	struct thread * temp_thread;
 
 	fakestruct.ts_placeholder = 1;
+find_new_eviction_page:
 	for(i=eviction_rr_count;i<nentries_coremap; i++)
 	{
 		if(coremap[i].coremap_pte != NULL)
@@ -539,6 +540,10 @@ int swapout(unsigned int* evicted_page)
 			i = 0;
 	}
 	eviction_rr_count = (i+1)%nentries_coremap;
+	temp_thread = coremap[i].coremap_thread;
+	if(temp_thread == NULL || temp_thread->t_cpu == (void *)0xdeadbeef)
+		goto find_new_eviction_page;
+
 	coremap[i].coremap_pte->is_valid = 0;
 	result = bitmap_alloc(swapdisk.swapdisk_bitmap, &swapdisk_index);
 	if(result)
