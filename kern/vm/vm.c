@@ -19,7 +19,7 @@
 //#define VM_STACKPAGES    801
 
 /*static struct coremap_entry * coremap;*/
-static struct spinlock coremap_spinlock = SPINLOCK_INITIALIZER;
+struct spinlock coremap_spinlock = SPINLOCK_INITIALIZER;
 unsigned int latest_page;
 unsigned int npages_allocated;
 unsigned int nentries_coremap;
@@ -402,8 +402,8 @@ looping:
 			swapin(temp_pte);
 			ppn = temp_pte->ppn;
 			paddr = ppn<<12;
-
-}
+		}
+		coremap[ppn].coremap_thread = curthread;
 
 	}
 	else { // we did not find vpn in pagetable
@@ -558,6 +558,7 @@ int swapout(unsigned int* evicted_page)
 	spinlock_acquire(&coremap_spinlock);
 
 	//check if thaat process is running
+	if(temp_thread!=NULL)
 	if( temp_thread->t_state == S_RUN)
 	{
 		targetcpu = temp_thread->t_cpu;

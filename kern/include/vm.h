@@ -65,6 +65,7 @@ struct swapdisk_struct {
 bool is_swap_enabled;
 struct swapdisk_struct swapdisk;
 struct coremap_entry * coremap;
+extern struct spinlock coremap_spinlock;
 paddr_t alloc_one_page(void);
 paddr_t alloc_mul_page(unsigned npages);
 void coremap_bootstrap(void);
