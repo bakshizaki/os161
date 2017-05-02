@@ -10,6 +10,9 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <elf.h>
+#include <stat.h>
+#include <bitmap.h>
+#include <vnode.h>
 
 /* under dumbvm, always have 72k of user stack */
 /* (this must be > 64K so argument blocks of size ARG_MAX will fit) */
@@ -20,11 +23,45 @@ static struct spinlock coremap_spinlock = SPINLOCK_INITIALIZER;
 unsigned int latest_page;
 unsigned int npages_allocated;
 unsigned int nentries_coremap;
+unsigned int eviction_rr_count; // round robin count
 
 void
 vm_bootstrap(void)
 {
-	/* Do nothing. */
+	struct vnode *v;
+	int result;
+	char dev_name[10];
+	struct stat statbuf;
+	size_t swapdisk_byte_size;
+	uint32_t swapdisk_block_count;
+
+	snprintf(dev_name,sizeof(dev_name),"lhd0raw:");
+	result = vfs_open(dev_name,O_RDWR,0,&v);
+	if(result)
+	{
+		is_swap_enabled = false;
+		return;
+	}
+	swapdisk.swapdisk_vnode = v;
+	swapdisk.swapdisk_lock = lock_create("swapdisk_lock");
+	result = VOP_STAT(v, &statbuf);
+	if(result)
+	{
+		is_swap_enabled = false;
+		return;
+	}
+	swapdisk_byte_size = statbuf.st_size;
+	swapdisk_block_count = swapdisk_byte_size / PAGE_SIZE;
+	swapdisk.swapdisk_bitmap = bitmap_create(swapdisk_block_count);
+	if(swapdisk.swapdisk_bitmap == NULL)
+	{
+		is_swap_enabled = false;
+		return;
+	}
+	is_swap_enabled = true;
+	eviction_rr_count = 0;
+	return;
+
 }
 
 void
@@ -53,7 +90,7 @@ coremap_bootstrap() {
 		coremap[i].is_fixed = 1;
     }
 
-    latest_page = nfixed_entries;
+    latest_page = nfixed_entries - 1;
 
 	spinlock_release(&coremap_spinlock);
 }
@@ -84,7 +121,13 @@ alloc_one_page() {
 		temp_index = (temp_index + 1) % nentries;
 		if(init_index == temp_index) 
 		{
-			// Check return value
+			// no more space in coremap, swap somthing out
+			if(is_swap_enabled)
+			{
+				swapout(&temp_index);
+				break;
+			}
+			// no swap return 0
 			return 0;
 		}
 	}
@@ -93,6 +136,8 @@ alloc_one_page() {
 	coremap[temp_index].is_allocated = 1;
 	coremap[temp_index].is_last_page = 1;
 	coremap[temp_index].is_fixed = 1;
+	if(curthread!= NULL)
+		coremap[temp_index].coremap_thread = curthread;
 	latest_page = temp_index;
 	npages_allocated++;
 	return pa * PAGE_SIZE; 
@@ -134,10 +179,12 @@ alloc_mul_page(unsigned npages) {
 				for(i = init_index; i<temp_index ; i++) {
 					coremap[i].is_allocated = 1;
 					coremap[i].is_fixed = 1;
+					coremap[i].coremap_thread = curthread;
 				}
 				coremap[i].is_allocated = 1;
 				coremap[i].is_last_page = 1;
 				coremap[i].is_fixed = 1;
+				coremap[i].coremap_thread = curthread;
 				pa = init_index;
 				latest_page = temp_index;
 				npages_allocated += npages;
@@ -193,11 +240,15 @@ free_kpages(vaddr_t addr)
 		{
 			coremap[page_index].is_allocated = 0;
 			coremap[page_index].is_fixed = 0;
+			coremap[page_index].coremap_pte = NULL;
+			coremap[page_index].coremap_thread = NULL;
 			page_index = (page_index + 1) % nentries;
 			npages_allocated--;
 		}
 		coremap[page_index].is_allocated = 0;
 		coremap[page_index].is_fixed = 0;
+		coremap[page_index].coremap_pte = NULL;
+		coremap[page_index].coremap_thread = NULL;
 		coremap[page_index].is_last_page = 0;
 		npages_allocated--;
 		spinlock_release(&coremap_spinlock);
@@ -219,7 +270,8 @@ void
 vm_tlbshootdown(const struct tlbshootdown *ts)
 {
 	(void)ts;
-	panic("dumbvm tried to do tlb shootdown?!\n");
+	/*panic("dumbvm tried to do tlb shootdown?!\n");*/
+	as_activate();
 }
 static
 void
@@ -241,6 +293,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	int is_segment_found = 0;
 	int page_permission =0;
 	uint32_t vpn, ppn;
+	int result;
 	
 
 	faultaddress &= PAGE_FRAME;
@@ -330,6 +383,7 @@ looping:
 	// if we find vpn in pagetable
 	if(temp_pte != NULL)
 	{
+		lock_acquire(temp_pte->pte_lock);
 		//check permission again? not sure if this is necessary
 		if(faulttype == VM_FAULT_READ && (( temp_pte->permission & PF_R  )== 0))
 			return EFAULT;
@@ -345,6 +399,10 @@ looping:
 		}
 		else { //page on disk
 			//TODO: do this later
+			swapin(temp_pte);
+			ppn = temp_pte->ppn;
+			paddr = ppn<<12;
+
 }
 
 	}
@@ -358,12 +416,18 @@ looping:
 			coremap_index = paddr / PAGE_SIZE;
 			as_zero_region(paddr, 1);
 			paddr = paddr & PAGE_FRAME;
-			add_pte(vpn, (paddr>>12), page_permission, &(as->pagetable_head), &(as->pagetable_tail), &added_pte);
+			result = add_pte(vpn, (paddr>>12), page_permission, &(as->pagetable_head), &(as->pagetable_tail), &added_pte);
+			if(result)
+				return ENOMEM;
+			spinlock_acquire(&coremap_spinlock);
 			//put pte address in coremap
 			coremap[coremap_index].coremap_pte = added_pte;
-			// make is fixed bit as 0
+			// make its fixed bit as 0
 			coremap[coremap_index].is_fixed = 0;
+			spinlock_release(&coremap_spinlock);
 			//TODO: acquire pte lock
+			lock_acquire(added_pte->pte_lock);
+			temp_pte = added_pte;
 			as->total_pages++;
 		
 	}
@@ -389,6 +453,7 @@ looping:
 		DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
 		tlb_write(ehi, elo, i);
 		//pte lock release
+		lock_release(temp_pte->pte_lock);
 		splx(spl);
 		return 0;
 	}
@@ -402,7 +467,105 @@ looping:
 	DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
 	tlb_random(ehi, elo);
 	//pte lock release
+	lock_release(temp_pte->pte_lock);
 	splx(spl);
 	return 0;
 }
 
+int block_read(off_t swapdisk_index, vaddr_t kvaddr)
+{
+	struct iovec iov;
+	struct uio ku;
+	int result;
+	uio_kinit(&iov, &ku,(void *)kvaddr, PAGE_SIZE, swapdisk_index * PAGE_SIZE, UIO_READ);
+	result = VOP_READ(swapdisk.swapdisk_vnode, &ku);
+	if (result) {
+		return result;
+	}
+	return 0;
+}
+int block_write(off_t swapdisk_index, vaddr_t kvaddr)
+{
+	struct iovec iov;
+	struct uio ku;
+	int result;
+	uio_kinit(&iov, &ku,(void *)kvaddr, PAGE_SIZE, swapdisk_index * PAGE_SIZE, UIO_WRITE);
+	/*spinlock_release(&coremap_spinlock);*/
+	result = VOP_WRITE(swapdisk.swapdisk_vnode, &ku);
+	/*spinlock_acquire(&coremap_spinlock);*/
+	if (result) {
+		return result;
+	}
+	return 0;
+}
+
+int swapin(struct pte* pte)
+{
+	vaddr_t new_kvaddr;
+	int result;
+
+	new_kvaddr = alloc_kpages(1);
+	result = block_read(pte->disk_location_index, new_kvaddr);
+	if (result) {
+		return result;
+	}
+	bitmap_unmark(swapdisk.swapdisk_bitmap, pte->disk_location_index);
+	pte->is_valid = true;
+	pte->ppn = KVADDR_TO_PADDR(new_kvaddr) >> 12;
+	spinlock_acquire(&coremap_spinlock);
+	coremap[(KVADDR_TO_PADDR(new_kvaddr))/ PAGE_SIZE].coremap_pte = pte;
+	coremap[(KVADDR_TO_PADDR(new_kvaddr))/ PAGE_SIZE].is_fixed = 0;
+	coremap[(KVADDR_TO_PADDR(new_kvaddr))/ PAGE_SIZE].coremap_thread = curthread;
+	spinlock_release(&coremap_spinlock);
+	return 0;
+}
+
+int swapout(unsigned int* evicted_page)
+{
+	unsigned int i;
+	int result;
+	unsigned swapdisk_index;
+	struct cpu * targetcpu;
+	struct tlbshootdown fakestruct;
+	struct lock * temp_lock;
+	struct thread * temp_thread;
+
+	fakestruct.ts_placeholder = 1;
+	for(i=eviction_rr_count;i<nentries_coremap; i++)
+	{
+		if(coremap[i].coremap_pte != NULL)
+			break;
+		if(i == nentries_coremap -1)
+			i = 0;
+	}
+	eviction_rr_count = (i+1)%nentries_coremap;
+	coremap[i].coremap_pte->is_valid = 0;
+	result = bitmap_alloc(swapdisk.swapdisk_bitmap, &swapdisk_index);
+	if(result)
+		return ENOMEM;
+	coremap[i].coremap_pte->disk_location_index = swapdisk_index;
+	temp_lock = coremap[i].coremap_pte->pte_lock;
+	temp_thread = coremap[i].coremap_thread;
+	coremap[i].coremap_pte = NULL;
+	spinlock_release(&coremap_spinlock);
+	lock_acquire(temp_lock);
+
+
+	result = block_write(swapdisk_index, PADDR_TO_KVADDR(i*PAGE_SIZE));
+	if(result)
+		return -1;
+	lock_release(temp_lock);
+	spinlock_acquire(&coremap_spinlock);
+
+	//check if thaat process is running
+	if( temp_thread->t_state == S_RUN)
+	{
+		targetcpu = temp_thread->t_cpu;
+		ipi_tlbshootdown(targetcpu, &fakestruct);
+
+	}
+	npages_allocated--;
+	*evicted_page = i;
+	return 0;
+
+}

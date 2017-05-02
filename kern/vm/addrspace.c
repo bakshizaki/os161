@@ -35,6 +35,7 @@
 #include <mips/tlb.h>
 #include <vm.h>
 #include <proc.h>
+#include <bitmap.h>
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -93,8 +94,29 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 	temp_pte = old->pagetable_head;
 	while(temp_pte != NULL)
 	{
+		lock_acquire(temp_pte->pte_lock);
 		if(temp_pte->is_valid == 1)
 		{
+			int coremap_index;
+			struct pte *added_pte;
+			temp_paddr = alloc_kpages(1);
+			if(temp_paddr == 0)
+				return ENOMEM;
+			temp_paddr = KVADDR_TO_PADDR(temp_paddr);
+			coremap_index = temp_paddr / PAGE_SIZE;
+			result = add_pte(temp_pte->vpn, (temp_paddr>>12), temp_pte->permission, &(new->pagetable_head), &(new->pagetable_tail), &added_pte);
+			if(result)
+				return ENOMEM;
+			//put pte address in coremap
+			coremap[coremap_index].coremap_pte = added_pte;
+			// make is fixed bit as 1
+			coremap[coremap_index].is_fixed = 0;
+			new->total_pages++;
+			memmove((void *) PADDR_TO_KVADDR(temp_paddr), (const void *)PADDR_TO_KVADDR((temp_pte->ppn)<<12), PAGE_SIZE);
+			
+		}
+		else {
+			//page is on disk? what do we do now?
 			int coremap_index;
 			struct pte *added_pte;
 			temp_paddr = alloc_kpages(1);
@@ -110,12 +132,9 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 			// make is fixed bit as 0
 			coremap[coremap_index].is_fixed = 0;
 			new->total_pages++;
-			memmove((void *) PADDR_TO_KVADDR(temp_paddr), (const void *)PADDR_TO_KVADDR((temp_pte->ppn)<<12), PAGE_SIZE);
-			
+			block_read(temp_pte->disk_location_index,PADDR_TO_KVADDR(temp_paddr));
 		}
-		else {
-			//page is on disk? what do we do now?
-		}
+		lock_release(temp_pte->pte_lock);
 		temp_pte = temp_pte->next;
 
 	}
@@ -315,8 +334,14 @@ int add_pte(uint32_t vpn, uint32_t ppn, int permission, struct pte **head, struc
 	temp->vpn = vpn;
 	temp->ppn = ppn;
 	temp->permission = permission;
-	temp->next = NULL;
 	temp->is_valid = 1;
+	temp->pte_lock = lock_create("pte_lock");
+	temp->next = NULL;
+	if(temp->pte_lock == NULL)
+	{
+		kfree(temp);
+		return -1;
+	}
 
 	if(*tail == NULL)
 	{
@@ -345,6 +370,11 @@ void delete_pagetable(struct pte **head,struct pte **tail )
 	while(iter_pte != NULL)
 	{
 		temp_next = iter_pte->next;
+		if(lock_do_i_hold(iter_pte->pte_lock))
+			lock_release(iter_pte->pte_lock);
+		lock_acquire(iter_pte->pte_lock);
+		lock_release(iter_pte->pte_lock);
+		lock_destroy(iter_pte->pte_lock);
 		kfree(iter_pte);
 		iter_pte = temp_next;
 	}
@@ -363,7 +393,9 @@ void delete_pages(struct pte **pagetable_head, struct addrspace *as)
 			as->total_pages--;
 		}
 		else {
+			bitmap_unmark(swapdisk.swapdisk_bitmap, temp->disk_location_index);
 			// remove physical pages
+			as->total_pages--;
 		}
 		temp = temp->next;
 	}
@@ -421,6 +453,7 @@ delete_one_entry_from_pagetable(struct pte **pagetable_head, struct pte **pageta
 	if(temp_pte->vpn == vpn)
 	{
 		*pagetable_head = temp_pte->next;
+		lock_destroy(temp_pte->pte_lock);
 		kfree(temp_pte);
 		return;
 	}
@@ -439,6 +472,7 @@ delete_one_entry_from_pagetable(struct pte **pagetable_head, struct pte **pageta
 		if(temp_pte == *pagetable_tail)
 			*pagetable_tail = prev_pte;
 		prev_pte->next = temp_pte->next;
+		lock_destroy(temp_pte->pte_lock);
 		kfree(temp_pte);
 	}
 

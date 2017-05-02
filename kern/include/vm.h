@@ -38,6 +38,7 @@
 
 
 #include <machine/vm.h>
+#include <uio.h>
 
 /* Fault-type arguments to vm_fault() */
 #define VM_FAULT_READ        0    /* A read was attempted */
@@ -51,8 +52,18 @@ struct coremap_entry {
 	bool is_fixed:1;
 	struct pte * coremap_pte;
 	bool is_referenced:1;
+	//pid_t pid;
+	struct thread *coremap_thread;
 
 };
+
+struct swapdisk_struct {
+	struct vnode * swapdisk_vnode;
+	struct lock * swapdisk_lock;
+	struct bitmap * swapdisk_bitmap;
+};
+bool is_swap_enabled;
+struct swapdisk_struct swapdisk;
 struct coremap_entry * coremap;
 paddr_t alloc_one_page(void);
 paddr_t alloc_mul_page(unsigned npages);
@@ -79,5 +90,9 @@ unsigned int coremap_free_space(void);
 /* TLB shootdown handling called from interprocessor_interrupt */
 void vm_tlbshootdown(const struct tlbshootdown *);
 
+int block_read(off_t swapdisk_index, vaddr_t kvaddr);
+int block_write(off_t swapdisk_index, vaddr_t kvaddr);
+int swapin(struct pte* pte);
+int swapout(unsigned int * evicted_page);
 
 #endif /* _VM_H_ */

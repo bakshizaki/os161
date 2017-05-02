@@ -40,6 +40,7 @@
 #include <mainbus.h>
 #include <syscall.h>
 #include <_exit_syscall.h>
+#include <proc.h>
 
 
 /* in exception-*.S */
@@ -427,6 +428,7 @@ enter_new_process(int argc, userptr_t argv, userptr_t env,
 	struct trapframe tf;
 
 	bzero(&tf, sizeof(tf));
+	curthread->t_proc->p_thread = curthread;
 
 	tf.tf_status = CST_IRQMASK | CST_IEp | CST_KUp;
 	tf.tf_epc = entry;

@@ -11,6 +11,7 @@
 #include <test.h>
 #include <kern/test161.h>
 #include <spinlock.h>
+#include <vm.h>
 
 /*
  * Use these stubs to test your reader-writer locks.
@@ -30,6 +31,7 @@ unsigned int rw_test_array[RWARRAYSIZE];
 #define NWRITELOOPS 4
 struct rwlock *rwlock_test;
 struct semaphore *donesem;
+#define MIPS_KSEG0  0x80000000
 
 
 static
@@ -122,9 +124,33 @@ int rwtest(int nargs, char **args) {
 int rwtest2(int nargs, char **args) {
 	(void)nargs;
 	(void)args;
+	vaddr_t new_vaddr;
+	int result;
 
 	kprintf_n("rwt2 unimplemented\n");
 	/*success(TEST161_FAIL, SECRET, "rwt2");*/
+	int i;
+	new_vaddr = alloc_kpages(1);
+	result = block_write(0, MIPS_KSEG0);
+	if (result) {
+		success(TEST161_FAIL, SECRET, "rwt2");
+		return result;
+	}
+	result = block_read(0,new_vaddr);
+	if (result) {
+		success(TEST161_FAIL, SECRET, "rwt2");
+		return result;
+	}
+	for(i=0; i<PAGE_SIZE; i++)
+	{
+		kprintf("%c ",*((char *)MIPS_KSEG0+i));
+		if(*((char *)MIPS_KSEG0+i) != *((char *)new_vaddr+i))
+		{
+			kprintf("Failed at %d\n", i);
+			success(TEST161_FAIL, SECRET, "rwt2");
+			return -1;
+		}
+	}
 	success(TEST161_SUCCESS, SECRET, "rwt2");
 
 	return 0;
