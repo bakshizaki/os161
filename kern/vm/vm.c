@@ -560,7 +560,7 @@ int swapout(unsigned int* evicted_page)
 	struct lock * temp_lock;
 	struct thread * temp_thread;
 
-find_new_eviction_page:
+/*find_new_eviction_page:*/
 	for(i=eviction_rr_count;i<nentries_coremap; i++)
 	{
 		if(i == eviction_rr_count-1)
@@ -573,8 +573,8 @@ find_new_eviction_page:
 	}
 	eviction_rr_count = (i+1)%nentries_coremap;
 	temp_thread = coremap[i].coremap_thread;
-	if(temp_thread == NULL || temp_thread->t_cpu == (void *)0xdeadbeef)
-		goto find_new_eviction_page;
+	/*if(temp_thread == NULL || temp_thread->t_cpu == (void *)0xdeadbeef)*/
+		/*goto find_new_eviction_page;*/
 
 	coremap[i].coremap_pte->is_valid = 0;
 	result = bitmap_alloc(swapdisk.swapdisk_bitmap, &swapdisk_index);
@@ -603,6 +603,7 @@ find_new_eviction_page:
 		else
 			fakestruct.ts_placeholder = coremap[i].tlb_index;
 		targetcpu = temp_thread->t_cpu;
+		if(targetcpu != NULL)
 		ipi_tlbshootdown(targetcpu, &fakestruct);
 
 	}
