@@ -427,6 +427,7 @@ looping:
 			paddr = ppn<<12;
 		}
 		coremap[ppn].coremap_thread = curthread;
+		coremap[ppn].coremap_pte = temp_pte;
 		coremap_index = ppn;
 
 	}

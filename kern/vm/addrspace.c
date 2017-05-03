@@ -109,7 +109,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 				return ENOMEM;
 			spinlock_acquire(&coremap_spinlock);
 			//put pte address in coremap
-			coremap[coremap_index].coremap_pte = added_pte;
+			/*coremap[coremap_index].coremap_pte = added_pte;*/
 			// make is fixed bit as 1
 			coremap[coremap_index].is_fixed = 0;
 			coremap[coremap_index].coremap_thread = NULL;
@@ -133,7 +133,7 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 				return ENOMEM;
 			spinlock_acquire(&coremap_spinlock);
 			//put pte address in coremap
-			coremap[coremap_index].coremap_pte = added_pte;
+			/*coremap[coremap_index].coremap_pte = added_pte;*/
 			// make is fixed bit as 0
 			coremap[coremap_index].is_fixed = 0;
 			coremap[coremap_index].coremap_thread = NULL;
