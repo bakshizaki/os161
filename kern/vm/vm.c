@@ -136,6 +136,8 @@ alloc_one_page() {
 	coremap[temp_index].is_allocated = 1;
 	coremap[temp_index].is_last_page = 1;
 	coremap[temp_index].is_fixed = 1;
+	coremap[temp_index].coremap_pte = NULL;
+	coremap[temp_index].tlb_index = -1;
 	if(curthread!= NULL)
 		coremap[temp_index].coremap_thread = curthread;
 	latest_page = temp_index;
@@ -180,11 +182,15 @@ alloc_mul_page(unsigned npages) {
 					coremap[i].is_allocated = 1;
 					coremap[i].is_fixed = 1;
 					coremap[i].coremap_thread = curthread;
+					coremap[i].coremap_pte = NULL;
+					coremap[i].tlb_index = -1;
 				}
 				coremap[i].is_allocated = 1;
 				coremap[i].is_last_page = 1;
 				coremap[i].is_fixed = 1;
 				coremap[i].coremap_thread = curthread;
+				coremap[i].coremap_pte = NULL;
+				coremap[i].tlb_index = -1;
 				pa = init_index;
 				latest_page = temp_index;
 				npages_allocated += npages;
@@ -242,6 +248,7 @@ free_kpages(vaddr_t addr)
 			coremap[page_index].is_fixed = 0;
 			coremap[page_index].coremap_pte = NULL;
 			coremap[page_index].coremap_thread = NULL;
+			coremap[page_index].tlb_index = -1;
 			page_index = (page_index + 1) % nentries;
 			npages_allocated--;
 		}
@@ -250,6 +257,7 @@ free_kpages(vaddr_t addr)
 		coremap[page_index].coremap_pte = NULL;
 		coremap[page_index].coremap_thread = NULL;
 		coremap[page_index].is_last_page = 0;
+		coremap[page_index].tlb_index = -1;
 		npages_allocated--;
 		spinlock_release(&coremap_spinlock);
 }
@@ -269,9 +277,23 @@ coremap_free_space() {
 void
 vm_tlbshootdown(const struct tlbshootdown *ts)
 {
-	(void)ts;
 	/*panic("dumbvm tried to do tlb shootdown?!\n");*/
-	as_activate();
+	/*as_activate();*/
+	int i, spl;
+	struct addrspace *as;
+
+	as = proc_getas();
+	if (as == NULL) {
+		return;
+	}
+
+	/* Disable interrupts on this CPU while frobbing the TLB. */
+	spl = splhigh();
+	i = ts->ts_placeholder;
+
+		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+
+	splx(spl);
 }
 static
 void
@@ -294,6 +316,7 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	int page_permission =0;
 	uint32_t vpn, ppn;
 	int result;
+	int coremap_index;
 	
 
 	faultaddress &= PAGE_FRAME;
@@ -404,10 +427,10 @@ looping:
 			paddr = ppn<<12;
 		}
 		coremap[ppn].coremap_thread = curthread;
+		coremap_index = ppn;
 
 	}
 	else { // we did not find vpn in pagetable
-			int coremap_index;
 			struct pte *added_pte;
 			paddr = alloc_kpages(1);
 			if(paddr == 0)
@@ -452,6 +475,9 @@ looping:
 
 		DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
 		tlb_write(ehi, elo, i);
+		spinlock_acquire(&coremap_spinlock);
+		coremap[coremap_index].tlb_index = i;
+		spinlock_release(&coremap_spinlock);
 		//pte lock release
 		lock_release(temp_pte->pte_lock);
 		splx(spl);
@@ -465,7 +491,11 @@ looping:
 	else
 		elo = paddr | TLBLO_VALID;
 	DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
-	tlb_random(ehi, elo);
+	i = random() % NUM_TLB;
+	tlb_write(ehi, elo, i);
+	spinlock_acquire(&coremap_spinlock);
+	coremap[coremap_index].tlb_index = i;
+	spinlock_release(&coremap_spinlock);
 	//pte lock release
 	lock_release(temp_pte->pte_lock);
 	splx(spl);
@@ -530,10 +560,12 @@ int swapout(unsigned int* evicted_page)
 	struct lock * temp_lock;
 	struct thread * temp_thread;
 
-	fakestruct.ts_placeholder = 1;
 find_new_eviction_page:
 	for(i=eviction_rr_count;i<nentries_coremap; i++)
 	{
+		if(i == eviction_rr_count-1)
+			/*i=i;*/
+			panic("full circle");
 		if(coremap[i].coremap_pte != NULL)
 			break;
 		if(i == nentries_coremap -1)
@@ -566,6 +598,10 @@ find_new_eviction_page:
 	if(temp_thread!=NULL)
 	if( temp_thread->t_state == S_RUN && temp_thread->t_cpu!=(void *)0xdeadbeef)
 	{
+		if(coremap[i].tlb_index == -1)
+			panic("why why why");
+		else
+			fakestruct.ts_placeholder = coremap[i].tlb_index;
 		targetcpu = temp_thread->t_cpu;
 		ipi_tlbshootdown(targetcpu, &fakestruct);
 

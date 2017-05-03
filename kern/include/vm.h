@@ -54,6 +54,7 @@ struct coremap_entry {
 	bool is_referenced:1;
 	//pid_t pid;
 	struct thread *coremap_thread;
+	int8_t tlb_index;
 
 };
 
