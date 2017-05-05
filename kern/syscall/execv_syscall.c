@@ -20,7 +20,7 @@ int sys_execv(char * program, char **args)
 	/*char **argv;*/
 	char** temp_args = args;
 	char kprogram[100];
-	char *buffer;
+	/*char buffer[ARG_MAX];*/
 	int *arg_size_array;
 	int arg_size_array_index = 0;
 	vaddr_t *arg_ptr_array;
@@ -37,14 +37,24 @@ int sys_execv(char * program, char **args)
 	if(args == NULL)
 		return EFAULT;
 
+	lock_acquire(exec_lock);
 	result = copyinstr((userptr_t)program, kprogram, sizeof(kprogram), &got);
 	if(result && got==0)
+	{
+	lock_release(exec_lock);
 		return EFAULT;
+	}
 	if(result && got>0)
+	{
+	lock_release(exec_lock);
 		return E2BIG;
+	}
 	result = copyin((userptr_t)args, temp_args, sizeof(char**));
 	if(result)
+	{
+	lock_release(exec_lock);
 		return EFAULT;
+	}
 
 	while(*temp_args)
 	{
@@ -54,26 +64,38 @@ int sys_execv(char * program, char **args)
 		/*kprintf("%d: %s %d\n",argc, temp_string, got);*/
 		temp_args += 1;
 	}
-	buffer = (char *)kmalloc(ARG_MAX);
-	if(buffer == NULL)
-		return ENOMEM;
+	/*buffer = (char *)kmalloc(ARG_MAX);*/
+	/*if(buffer == NULL)*/
+		/*return ENOMEM;*/
 	arg_size_array = (int *)kmalloc(sizeof(int)*argc);
 	if(arg_size_array == NULL)
+	{
+	lock_release(exec_lock);
 		return ENOMEM;
+	}
 	arg_ptr_array = (vaddr_t *)kmalloc(sizeof(vaddr_t)*argc);
 	if(arg_ptr_array == NULL)
+	{
+	lock_release(exec_lock);
 		return ENOMEM;
+	}
 
 	//Now read data
 	temp_args = args;
 	while(*temp_args)
 	{
 		got = 0;
-		result = copyinstr((userptr_t)*temp_args, buffer+buffer_bytes_written, ARG_MAX - buffer_bytes_written, &got);
+		result = copyinstr((userptr_t)*temp_args, exec_buffer+buffer_bytes_written, ARG_MAX - buffer_bytes_written, &got);
 		if(result && got==0)
+		{
+	lock_release(exec_lock);
 			return EFAULT;
+		}
 		if(result && got>0)
+		{
+	lock_release(exec_lock);
 			return E2BIG;
+		}
 		prev_bytes_written = buffer_bytes_written;
 		buffer_bytes_written += got;
 		if(got%4 == 0)
@@ -82,7 +104,7 @@ int sys_execv(char * program, char **args)
 			padding = 4 - (got%4);
 		for(i=0; i<padding; i++)
 		{
-			buffer[buffer_bytes_written] = '\0';
+			exec_buffer[buffer_bytes_written] = '\0';
 			buffer_bytes_written += 1;
 		}
 		arg_size_array[arg_size_array_index] = buffer_bytes_written - prev_bytes_written;
@@ -97,15 +119,19 @@ int sys_execv(char * program, char **args)
 
 	result = krunprogram(kprogram, &entrypoint, &stackptr, &oldas);
 	if(result)
+	{
+	lock_release(exec_lock);
 		return result;
+	}
 
 	for(i=0; i<argc; i++)
 	{
 		stackptr = stackptr - arg_size_array[i];
 		arg_ptr_array[i] = stackptr;
-		result = copyout(buffer+copyout_offset, (userptr_t)stackptr, arg_size_array[i]);
+		result = copyout(exec_buffer+copyout_offset, (userptr_t)stackptr, arg_size_array[i]);
 		if(result)
 		{
+		lock_release(exec_lock);
 		switch_back_oldas(oldas);
 		return result;
 		}
@@ -116,6 +142,7 @@ int sys_execv(char * program, char **args)
 	result = copyout(null_array,(userptr_t)stackptr, sizeof(userptr_t));
 	if(result)
 	{
+	lock_release(exec_lock);
 		switch_back_oldas(oldas);
 		return result;
 	}
@@ -126,6 +153,7 @@ int sys_execv(char * program, char **args)
 		result = copyout(&arg_ptr_array[i], (userptr_t)stackptr, sizeof(userptr_t));
 		if(result)
 		{
+	lock_release(exec_lock);
 		switch_back_oldas(oldas);
 		return result;
 		}
@@ -133,9 +161,10 @@ int sys_execv(char * program, char **args)
 
 	// destroy addrspace of old process
 	as_destroy(oldas);
-	kfree(buffer);
+	/*kfree(buffer);*/
 	kfree(arg_size_array);
 	kfree(arg_ptr_array);
+	lock_release(exec_lock);
 
 
 	/* Warp to user mode. */

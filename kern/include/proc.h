@@ -60,6 +60,9 @@ struct file_handle {
 struct proc* proc_table[256];
 pid_t proc_latest_pid;
 struct lock *proc_table_lock;
+char exec_buffer[ARG_MAX];
+struct lock *exec_lock;
+
 /*
  * Process structure.
  *

@@ -55,6 +55,7 @@ struct coremap_entry {
 	//pid_t pid;
 	struct thread *coremap_thread;
 	int8_t tlb_index;
+	bool swapping_status;
 
 };
 
