@@ -587,9 +587,9 @@ int swapout(unsigned int* evicted_page)
 find_new_eviction_page:
 	for(i=eviction_rr_count;i<nentries_coremap; i++)
 	{
-		if(i == eviction_rr_count-1)
-			/*i=i;*/
-			panic("full circle");
+		/*if(i == eviction_rr_count-1)*/
+			/*[>i=i;<]*/
+			/*panic("full circle");*/
 		if(coremap[i].coremap_pte != NULL)
 			if(coremap[i].swapping_status == false)
 			{
