@@ -107,17 +107,13 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 			result = add_pte(temp_pte->vpn, (temp_paddr>>12), temp_pte->permission, &(new->pagetable_head), &(new->pagetable_tail), &added_pte);
 			if(result)
 				return ENOMEM;
+			new->total_pages++;
+			memmove((void *) PADDR_TO_KVADDR(temp_paddr), (const void *)PADDR_TO_KVADDR((temp_pte->ppn)<<12), PAGE_SIZE);
 			spinlock_acquire(&coremap_spinlock);
-			//put pte address in coremap
-			coremap[coremap_index].coremap_pte = added_pte;
-			// make is fixed bit as 1
+			/*coremap[coremap_index].coremap_pte = added_pte;*/
 			coremap[coremap_index].is_fixed = 0;
 			coremap[coremap_index].coremap_thread = NULL;
 			spinlock_release(&coremap_spinlock);
-			new->total_pages++;
-			memmove((void *) PADDR_TO_KVADDR(temp_paddr), (const void *)PADDR_TO_KVADDR((temp_pte->ppn)<<12), PAGE_SIZE);
-		if(lock_do_i_hold(temp_pte->pte_lock))
-			lock_release(temp_pte->pte_lock);
 		}
 		else {
 			//page is on disk? what do we do now?
@@ -131,17 +127,14 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 			result = add_pte(temp_pte->vpn, (temp_paddr>>12), temp_pte->permission, &(new->pagetable_head), &(new->pagetable_tail), &added_pte);
 			if(result)
 				return ENOMEM;
+			new->total_pages++;
+			block_read(temp_pte->disk_location_index,PADDR_TO_KVADDR(temp_paddr));
 			spinlock_acquire(&coremap_spinlock);
-			//put pte address in coremap
-			coremap[coremap_index].coremap_pte = added_pte;
-			// make is fixed bit as 0
+			/*coremap[coremap_index].coremap_pte = added_pte;*/
 			coremap[coremap_index].is_fixed = 0;
 			coremap[coremap_index].coremap_thread = NULL;
 			spinlock_release(&coremap_spinlock);
-			new->total_pages++;
-			block_read(temp_pte->disk_location_index,PADDR_TO_KVADDR(temp_paddr));
 		}
-		if(lock_do_i_hold(temp_pte->pte_lock))
 			lock_release(temp_pte->pte_lock);
 		temp_pte = temp_pte->next;
 
@@ -157,6 +150,8 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 void
 as_destroy(struct addrspace *as)
 {
+	if(is_swap_enabled == 1)
+		return;
 	delete_segment_list(&(as->segment_head));
 	delete_pages(&(as->pagetable_head), as);
 	delete_pagetable(&(as->pagetable_head),&(as->pagetable_tail));

@@ -44,10 +44,12 @@
 #include <syscall.h>
 #include <test.h>
 #include <prompt.h>
+#include <waitpid_syscall.h>
 #include "opt-sfs.h"
 #include "opt-net.h"
 #include "opt-synchprobs.h"
 #include "opt-automationtest.h"
+
 
 /*
  * In-kernel menu and command dispatcher.
@@ -145,6 +147,8 @@ common_prog(int nargs, char **args)
 	 */
 
 	// Wait for all threads to finish cleanup, otherwise khu be a bit behind,
+	int err;
+	sys_waitpid(proc->p_pid, (userptr_t)&result, 0, &err);
 	// especially once swapping is enabled.
 	thread_wait_for_count(tc);
 

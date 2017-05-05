@@ -35,6 +35,7 @@ vm_bootstrap(void)
 	size_t swapdisk_byte_size;
 	uint32_t swapdisk_block_count;
 
+	exec_lock = lock_create("exec_lock");
 	snprintf(dev_name,sizeof(dev_name),"lhd0raw:");
 	result = vfs_open(dev_name,O_RDWR,0,&v);
 	if(result)
@@ -115,6 +116,7 @@ alloc_one_page() {
 	unsigned int init_index = latest_page;
 	unsigned int temp_index = latest_page;
 	unsigned nentries = nentries_coremap;
+	int is_swapped = 0;
 
 	temp_index = (temp_index + 1) % nentries;
 	while(coremap[temp_index].is_allocated == 1){
@@ -124,7 +126,9 @@ alloc_one_page() {
 			// no more space in coremap, swap somthing out
 			if(is_swap_enabled)
 			{
-				swapout(&temp_index);
+				is_swapped = 1;
+				if(swapout(&temp_index))
+					panic("error in swapout");
 				break;
 			}
 			// no swap return 0
@@ -133,13 +137,17 @@ alloc_one_page() {
 	}
 
 	pa = temp_index;
+	if(is_swapped == 0 )
+	{
 	coremap[temp_index].is_allocated = 1;
 	coremap[temp_index].is_last_page = 1;
 	coremap[temp_index].is_fixed = 1;
 	coremap[temp_index].coremap_pte = NULL;
 	coremap[temp_index].tlb_index = -1;
+	coremap[temp_index].coremap_thread =NULL;
 	if(curthread!= NULL)
 		coremap[temp_index].coremap_thread = curthread;
+	}
 	latest_page = temp_index;
 	npages_allocated++;
 	return pa * PAGE_SIZE; 
@@ -211,9 +219,11 @@ getppages(unsigned long npages) {
 	spinlock_acquire(&coremap_spinlock);
 	if(npages == 1) {
 		addr = alloc_one_page();
+		bzero((void *)PADDR_TO_KVADDR(addr), 1 * PAGE_SIZE);
 	} 
 	else {
 		addr = alloc_mul_page(npages);
+		bzero((void *)PADDR_TO_KVADDR(addr), npages * PAGE_SIZE);
 	}
 	spinlock_release(&coremap_spinlock);
 
@@ -317,11 +327,12 @@ vm_fault(int faulttype, vaddr_t faultaddress)
 	uint32_t vpn, ppn;
 	int result;
 	int coremap_index;
+	int update_flag = 0;
 	
 
 	faultaddress &= PAGE_FRAME;
 
-	DEBUG(DB_VM, "dumbvm: fault: 0x%x\n", faultaddress);
+	/*DEBUG(DB_VM, "dumbvm: fault: 0x%x\n", faultaddress);*/
 
 	switch (faulttype) {
 	    case VM_FAULT_READONLY:
@@ -419,17 +430,16 @@ looping:
 		{
 			ppn = temp_pte->ppn;
 			paddr = ppn<<12;
+			update_flag = 0;
 		}
 		else { //page on disk
 			//TODO: do this later
 			swapin(temp_pte);
 			ppn = temp_pte->ppn;
 			paddr = ppn<<12;
+			update_flag = 1;
 		}
-		coremap[ppn].coremap_thread = curthread;
-		coremap[ppn].coremap_pte = temp_pte;
 		coremap_index = ppn;
-
 	}
 	else { // we did not find vpn in pagetable
 			struct pte *added_pte;
@@ -443,16 +453,17 @@ looping:
 			result = add_pte(vpn, (paddr>>12), page_permission, &(as->pagetable_head), &(as->pagetable_tail), &added_pte);
 			if(result)
 				return ENOMEM;
-			spinlock_acquire(&coremap_spinlock);
-			//put pte address in coremap
-			coremap[coremap_index].coremap_pte = added_pte;
-			// make its fixed bit as 0
-			coremap[coremap_index].is_fixed = 0;
-			spinlock_release(&coremap_spinlock);
+			/*spinlock_acquire(&coremap_spinlock);*/
+			/*//put pte address in coremap*/
+			/*coremap[coremap_index].coremap_pte = added_pte;*/
+			/*// make its fixed bit as 0*/
+			/*coremap[coremap_index].is_fixed = 0;*/
+			/*spinlock_release(&coremap_spinlock);*/
 			//TODO: acquire pte lock
 			lock_acquire(added_pte->pte_lock);
 			temp_pte = added_pte;
 			as->total_pages++;
+			update_flag = 1;
 		
 	}
 	
@@ -476,12 +487,12 @@ looping:
 
 		DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
 		tlb_write(ehi, elo, i);
-		spinlock_acquire(&coremap_spinlock);
+		coremap[coremap_index].coremap_thread = curthread;
+		coremap[coremap_index].coremap_pte = temp_pte;
 		coremap[coremap_index].tlb_index = i;
-		spinlock_release(&coremap_spinlock);
 		//pte lock release
-		lock_release(temp_pte->pte_lock);
 		splx(spl);
+		lock_release(temp_pte->pte_lock);
 		return 0;
 	}
 
@@ -494,12 +505,15 @@ looping:
 	DEBUG(DB_VM, "dumbvm: 0x%x -> 0x%x\n", faultaddress, paddr);
 	i = random() % NUM_TLB;
 	tlb_write(ehi, elo, i);
-	spinlock_acquire(&coremap_spinlock);
+	if(update_flag == 1)
+	{
+	coremap[coremap_index].coremap_thread = curthread;
+	coremap[coremap_index].coremap_pte = temp_pte;
 	coremap[coremap_index].tlb_index = i;
-	spinlock_release(&coremap_spinlock);
+	}
 	//pte lock release
-	lock_release(temp_pte->pte_lock);
 	splx(spl);
+	lock_release(temp_pte->pte_lock);
 	return 0;
 }
 
@@ -540,11 +554,13 @@ int swapin(struct pte* pte)
 	if (result) {
 		return result;
 	}
+	lock_acquire(swapdisk.swapdisk_lock);
 	bitmap_unmark(swapdisk.swapdisk_bitmap, pte->disk_location_index);
+	lock_release(swapdisk.swapdisk_lock);
 	pte->is_valid = true;
 	pte->ppn = KVADDR_TO_PADDR(new_kvaddr) >> 12;
 	spinlock_acquire(&coremap_spinlock);
-	coremap[(KVADDR_TO_PADDR(new_kvaddr))/ PAGE_SIZE].coremap_pte = pte;
+	coremap[(KVADDR_TO_PADDR(new_kvaddr))/ PAGE_SIZE].coremap_pte = NULL;
 	coremap[(KVADDR_TO_PADDR(new_kvaddr))/ PAGE_SIZE].is_fixed = 0;
 	coremap[(KVADDR_TO_PADDR(new_kvaddr))/ PAGE_SIZE].coremap_thread = curthread;
 	spinlock_release(&coremap_spinlock);
@@ -554,14 +570,17 @@ int swapin(struct pte* pte)
 int swapout(unsigned int* evicted_page)
 {
 	unsigned int i;
+	int spl;
 	int result;
 	unsigned swapdisk_index;
-	struct cpu * targetcpu;
-	struct tlbshootdown fakestruct;
+	/*struct cpu * targetcpu;*/
+	/*struct tlbshootdown fakestruct;*/
 	struct lock * temp_lock;
-	struct thread * temp_thread;
+	/*struct thread * temp_thread;*/
+	struct pte * temp_pte;
+	int8_t tlb_index;
 
-/*find_new_eviction_page:*/
+find_new_eviction_page:
 	for(i=eviction_rr_count;i<nentries_coremap; i++)
 	{
 		if(i == eviction_rr_count-1)
@@ -573,41 +592,69 @@ int swapout(unsigned int* evicted_page)
 			i = 0;
 	}
 	eviction_rr_count = (i+1)%nentries_coremap;
-	temp_thread = coremap[i].coremap_thread;
+	if(lock_do_i_hold(coremap[i].coremap_pte->pte_lock))
+			goto find_new_eviction_page;
 	/*if(temp_thread == NULL || temp_thread->t_cpu == (void *)0xdeadbeef)*/
 		/*goto find_new_eviction_page;*/
-
+	temp_pte = coremap[i].coremap_pte;
+	temp_lock = coremap[i].coremap_pte->pte_lock;
+	/*temp_thread = coremap[i].coremap_thread;*/
+	tlb_index = coremap[i].tlb_index;
 	coremap[i].coremap_pte->is_valid = 0;
+
+	//clear all coremap data
+		coremap[i].is_allocated = 1;
+		coremap[i].is_last_page = 1;
+		coremap[i].is_fixed = 1;
+		coremap[i].coremap_pte = NULL;
+		coremap[i].tlb_index = -1;
+		coremap[i].coremap_thread =NULL;
+		if(curthread!= NULL)
+			coremap[i].coremap_thread = curthread;
+	spinlock_release(&coremap_spinlock);
+
+	lock_acquire(swapdisk.swapdisk_lock);
 	result = bitmap_alloc(swapdisk.swapdisk_bitmap, &swapdisk_index);
 	if(result)
-		return ENOMEM;
-	coremap[i].coremap_pte->disk_location_index = swapdisk_index;
-	temp_lock = coremap[i].coremap_pte->pte_lock;
-	temp_thread = coremap[i].coremap_thread;
-	coremap[i].coremap_pte = NULL;
-	spinlock_release(&coremap_spinlock);
+		panic("1");
+		/*return ENOMEM;*/
+	lock_release(swapdisk.swapdisk_lock);
 	lock_acquire(temp_lock);
+	temp_pte->is_valid = 0;
+	temp_pte->disk_location_index = swapdisk_index;
+	lock_release(temp_lock);
 
 
 	result = block_write(swapdisk_index, PADDR_TO_KVADDR(i*PAGE_SIZE));
 	if(result)
-		return -1;
+		panic("2");
+		/*return -1;*/
+	lock_acquire(temp_lock);
+	temp_pte->is_valid = 0;
+	spl = splhigh();
+	tlb_index = tlb_probe((temp_pte->vpn)<<12,0);
+	if(tlb_index>=0)
+		tlb_write(TLBHI_INVALID(tlb_index), TLBLO_INVALID(), tlb_index);
+
+	splx(spl);
 	lock_release(temp_lock);
 	spinlock_acquire(&coremap_spinlock);
 
 	//check if thaat process is running
-	if(temp_thread!=NULL)
-	if( temp_thread->t_state == S_RUN && temp_thread->t_cpu!=(void *)0xdeadbeef)
-	{
-		if(coremap[i].tlb_index == -1)
-			panic("why why why");
-		else
-			fakestruct.ts_placeholder = coremap[i].tlb_index;
-		targetcpu = temp_thread->t_cpu;
-		if(targetcpu != NULL)
-		ipi_tlbshootdown(targetcpu, &fakestruct);
+	/*as_activate();*/
+	
 
-	}
+	/*if(temp_thread!=NULL)*/
+	/*if( temp_thread->t_state == S_RUN && temp_thread->t_cpu!=(void *)0xdeadbeef)*/
+	/*{*/
+		/*if(tlb_index != -1)*/
+		/*{*/
+			/*fakestruct.ts_placeholder = tlb_index;*/
+			/*targetcpu = temp_thread->t_cpu;*/
+			/*if(targetcpu != NULL)*/
+			/*ipi_tlbshootdown(targetcpu, &fakestruct);*/
+		/*}*/
+	/*}*/
 	npages_allocated--;
 	*evicted_page = i;
 	return 0;
