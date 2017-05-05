@@ -150,12 +150,12 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 void
 as_destroy(struct addrspace *as)
 {
-	if(is_swap_enabled == 1)
-	{
-		/*kprintf("as_destroy");*/
-		return;
+	/*if(is_swap_enabled == 1)*/
+	/*{*/
+		/*[>kprintf("as_destroy");<]*/
+		/*return;*/
 
-	}
+	/*}*/
 	delete_segment_list(&(as->segment_head));
 	delete_pages(&(as->pagetable_head), as);
 	delete_pagetable(&(as->pagetable_head),&(as->pagetable_tail));
