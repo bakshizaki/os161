@@ -144,6 +144,7 @@ alloc_one_page() {
 	coremap[temp_index].coremap_pte = NULL;
 	coremap[temp_index].tlb_index = -1;
 	coremap[temp_index].swapping_status =false;
+	coremap[temp_index].is_referenced = false;
 	if(curthread!= NULL)
 		coremap[temp_index].coremap_thread = curthread;
 
@@ -193,6 +194,7 @@ alloc_mul_page(unsigned npages) {
 					coremap[i].coremap_pte = NULL;
 					coremap[i].tlb_index = -1;
 					coremap[i].swapping_status = false;
+					coremap[i].is_referenced = false;
 				}
 				coremap[i].is_allocated = 1;
 				coremap[i].is_last_page = 1;
@@ -201,6 +203,7 @@ alloc_mul_page(unsigned npages) {
 				coremap[i].coremap_pte = NULL;
 				coremap[i].tlb_index = -1;
 				coremap[i].swapping_status = false;
+				coremap[i].is_referenced = false;
 				pa = init_index;
 				latest_page = temp_index;
 				npages_allocated += npages;
@@ -440,6 +443,7 @@ looping:
 		coremap[ppn].coremap_thread = curthread;
 		coremap[ppn].coremap_pte = temp_pte;
 		coremap[ppn].swapping_status = false;
+		coremap[ppn].is_referenced = true;
 		coremap_index = ppn;
 
 	}
@@ -459,6 +463,7 @@ looping:
 			//put pte address in coremap
 			coremap[coremap_index].coremap_pte = added_pte;
 			coremap[coremap_index].swapping_status = false;
+			coremap[coremap_index].is_referenced = true;
 			// make its fixed bit as 0
 			coremap[coremap_index].is_fixed = 0;
 			spinlock_release(&coremap_spinlock);
@@ -588,7 +593,15 @@ find_new_eviction_page:
 		if(coremap[i].coremap_pte != NULL)
 			if(coremap[i].swapping_status == false)
 			{
+				if(coremap[i].is_referenced == true)
+				{
+					coremap[i].is_referenced = false;
+
+				}
+				else {
 				break;
+
+				}
 			}
 		if(i == nentries_coremap -1)
 			i = 0;
